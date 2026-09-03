@@ -24,7 +24,7 @@ services:
   standalone:
     ports: !override
       - "19531:19530"
-      - "19091:9091"
+      - "19092:9091"
     volumes: !override
       - milvus_data:/var/lib/milvus
   attu:
@@ -41,7 +41,7 @@ services:
     environment:
       cluster.routing.allocation.disk.threshold_enabled: "false"
       # File gốc chỉ mở CORS cho http://localhost:8081, mà elasticvue đã dời sang
-      # 8082 -> trình duyệt bị chặn. Elasticvue gọi ES TỪ TRÌNH DUYỆT nên origin
+      # 8084 -> trình duyệt bị chặn. Elasticvue gọi ES TỪ TRÌNH DUYỆT nên origin
       # đổi theo cách bạn mở UI (localhost qua ssh-forward, hay IP server) -> mở hết.
       # Phải là regex "/.*/" chứ không phải "*": ES ghi env ra overrides.yml, dấu *
       # trần bị YAML hiểu là alias -> ES chết khi khởi động.
@@ -53,7 +53,7 @@ services:
       - es_data:/usr/share/elasticsearch/data
   elasticvue:
     ports: !override
-      - "8082:8080"
+      - "8084:8080"
   api:
     ports: !override
       - "8021:8000"

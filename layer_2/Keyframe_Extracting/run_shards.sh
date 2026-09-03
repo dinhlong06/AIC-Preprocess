@@ -13,7 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-PIPELINE="${PIPELINE:-pipeline_c}"
+PIPELINE="${PIPELINE:-pipeline_g}"
 NSHARDS="${NSHARDS:-3}"
 CLAIMS="$SCRIPT_DIR/benchmark/claims_$PIPELINE"
 SHOTS_SPLIT_DIR="$SCRIPT_DIR/dataset/shots"
@@ -29,7 +29,7 @@ if [[ "$n_shots" -lt "$n_video" ]]; then
     exit 1
 fi
 
-mkdir -p "$CLAIMS"
+[[ ! -d "$CLAIMS" ]] && { rm -rf "$CLAIMS" 2>/dev/null || true; mkdir -p "$CLAIMS"; }
 # Gieo claim cho video đã xong để shard khác không làm lại.
 for d in "$SCRIPT_DIR/benchmark/$PIPELINE"/*/; do
     [[ -f "$d/statistics.json" ]] && : > "$CLAIMS/$(basename "$d")"

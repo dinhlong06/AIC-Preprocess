@@ -16,11 +16,13 @@ dataset/
 dataset_batch1/
 eda_output/
 output/
-output_batch1/
-output_batch1_stale/
+output*/
+benchmark/
+benchmark*/
 frames/
 experiments/
 checkpoints/
+checkpoint/
 logs/
 wandb/
 tmp/
@@ -80,3 +82,9 @@ retrieval_system/
 docs/
 eda_video_dataset.py
 eda_video_themes.py
+
+.*/
+!.gitignore
+
+test*/
+experiments/

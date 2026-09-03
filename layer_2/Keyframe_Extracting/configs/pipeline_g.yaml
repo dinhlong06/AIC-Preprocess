@@ -1,0 +1,59 @@
+# Pipeline G — Upgraded Multi-Stage Keyframe Extraction Pipeline (v3)
+# Flow: DAKE → Transition Peaks → Blank Veto → BEiT-3 → Global Semantic Filter
+#       (+ shot.start_frame force-pick + coverage ceiling) → Score-Aware Diversity NMS
+#       → Local Sharpness Reselection
+#
+# v3.1: Nới Semantic/Diversity threshold từ 0.90/0.88 lên 0.93/0.91 vì các cảnh
+# pan/drone mượt, liên tục bị coverage thấp ở threshold cũ; đã verify trên L23_V008.
+#
+# v3 Upgrades (so với v2.1):
+#   - min_frame_distance: đổi về 5 (khoảng cách tối thiểu giữa 2 keyframe liên tiếp)
+#   - Blank veto: loại frame đen/trắng phẳng (transition cut) trước khi encode
+#   - Coverage ceiling: gap-based adaptive threshold decay + force-pick nếu 1 shot
+#     tĩnh quá lâu (> max_gap_frames) không có keyframe nào
+#   - Sharpness reselection: tráo keyframe sang frame nét hơn trong ±window_radius
+#     frame lân cận cùng cảnh (không đổi frame_idx)
+#   - shot.start_frame luôn được ép làm candidate encode (không bị DAKE/veto bỏ sót),
+#     nhưng vẫn qua Semantic/Diversity Filter bình thường như mọi candidate khác —
+#     code cứng trong pipeline_g.py, không có config bật/tắt
+
+keyframe:
+  pipeline: pipeline_g
+
+  min_frame_distance: 5      # Khoảng cách tối thiểu 5 frame giữa 2 keyframe liên tiếp
+
+  beit3:
+    checkpoint_path: checkpoint/beit-3/beit3_large_patch16_224.pth
+    spm_path: checkpoint/beit-3/beit3.spm
+    device: cuda
+    batch_size: 32
+
+  dake:
+    candidate_ratio: 0.05    # 5% recall — high enough to not miss important frames
+    window_size: 3
+
+  semantic:
+    # Frame bị loại khi cosine similarity với keyframe đã giữ >= ngưỡng này.
+    similarity_threshold: 0.93
+    max_history_size: 512    # Bounded ring buffer — prevents O(N) memory growth in long videos
+    gap_decay_start_frames: 150   # Bắt đầu nới threshold (tối đa +0.05) sau N frame không có keyframe
+    max_gap_frames: 300           # Ép chọn keyframe khác biệt nhất nếu vượt N frame (coverage ceiling)
+
+  diversity:
+    redundancy_threshold: 0.91     # Pairwise cosine NMS threshold
+    min_keyframes_per_shot: 1      # Sàn mềm; NMS luôn giữ >= 1 nên chỉ có tác dụng khi >= 2
+
+  transition:
+    enabled: true
+    peak_percentile: 90.0          # Base percentile threshold for steepness peaks
+    prominence_window: 3           # Peak must be max within [i-3, i+3] window
+
+  veto:
+    enabled: true
+    min_brightness: 15.0    # Dưới ngưỡng này (mean pixel) coi là tối
+    max_brightness: 240.0   # Trên ngưỡng này (mean pixel) coi là sáng/trắng (white flash cut)
+    min_variance: 15.0      # Dưới ngưỡng này (Laplacian variance) coi là phẳng, không chi tiết
+
+  sharpness:
+    enabled: true
+    window_radius: 4        # Xét ±4 frame lân cận để tráo sang frame nét hơn

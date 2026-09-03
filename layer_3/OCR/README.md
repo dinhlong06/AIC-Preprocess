@@ -114,7 +114,7 @@ Frame on disk
 [stage 1, GPU, docker]
 frame_skip: blank / blur / pHash near-dup   <- reuse previous frame's result on a hit
      |
-PaddleOCR PP-OCRv6 (--ascii strips wrong diacritics, base letters are usually right)
+PaddleOCR PP-OCRv6 (marks often wrong/dropped, base letters usually right -- kept as-is, stage 2 restores them)
      |
 output_vietocr.json  (+ output_paddle_origin.json, same schema, Paddle's own recognizer)  {frame_id, texts:[{text, confidence}]}
      |
@@ -140,7 +140,7 @@ paddle:
     blur_threshold: 50.0
     similarity_hamming_threshold: 8
   ocr:
-    lang / confidence_threshold / ascii / ocr_version / unclip_ratio
+    lang / ocr_version / unclip_ratio
 
 correct:
   frames_dir / paddle_output / output_file / checkpoint_every / workers
@@ -164,7 +164,7 @@ correct:
 ## Notes
 
 - `frame_id` is the file stem: `K01_V001_000025_kf0001.jpg` -> `"K01_V001_000025_kf0001"`.
-- `texts: []` for blank/blurry/skipped frames or frames with nothing above `confidence_threshold`.
+- `texts: []` for blank/blurry/skipped frames or frames with no detected boxes.
 - Both stages write output atomically (`.tmp` then `replace()`) and resume via `checkpoint_every`.
 - See `../../` memory notes (`ocr-hybrid-paddle-plus-vlm`, `ocr-v2-nemotron-comparison`,
   `ising-calibration-api-rate-limit`) for the full experimentation history behind these choices --

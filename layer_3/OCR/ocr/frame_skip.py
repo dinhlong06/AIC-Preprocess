@@ -2,11 +2,14 @@
 frame_skip.py -- cheap CPU pre-filters, ported from an earlier local Paddle+VietOCR
 pipeline's engine.py + preprocessor.py (retired, see memory ocr_v2-package-refactor)
 
-Full-dataset scale means most frames are either blank, blurry, or a near-
-duplicate of the frame before it (a news banner sits still for seconds at a
-time) -- running Paddle/GPU or calling the rate-limited ising API on every
-single one wastes both. These checks run in <1ms combined and let a caller
-skip or reuse the previous frame's result instead.
+Blank-frame and near-duplicate-frame skips were removed 2026-08-27: blank
+skip's harm was never measured before being disabled, and the similarity
+(pHash) skip measurably corrupted OCR at scale (see memory) -- pHash on the
+WHOLE frame is dominated by static background (banner/photo) even when the
+on-screen text changes, and because the chain only compares each frame to
+the ONE before it, a single false match propagates a stale OCR result
+forward indefinitely (batch1: 1,028 shots, ~22% of frames affected, one
+chain 85 frames long). Only the blur check remains.
 """
 
 from __future__ import annotations
@@ -22,23 +25,8 @@ def read_frame(image_path: str) -> tuple[np.ndarray, np.ndarray] | None:
     return bgr, cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
 
-def is_blank_frame(gray: np.ndarray, brightness_threshold: int = 15) -> bool:
-    return float(np.mean(gray)) < brightness_threshold
-
-
 def is_blurry(gray: np.ndarray, blur_threshold: float = 50.0) -> bool:
     return float(cv2.Laplacian(gray, cv2.CV_32F).var()) < blur_threshold
-
-
-def phash(gray: np.ndarray, hash_size: int = 8) -> np.ndarray:
-    resized = cv2.resize(gray, (hash_size * 4, hash_size * 4), interpolation=cv2.INTER_AREA).astype(np.float32)
-    dct_block = cv2.dct(resized)[:hash_size, :hash_size]
-    median = np.median(dct_block[1:, 1:])
-    return dct_block > median
-
-
-def hamming_distance(h1: np.ndarray, h2: np.ndarray) -> int:
-    return int(np.sum(h1 != h2))
 
 
 def apply_clahe(bgr: np.ndarray, clip_limit: float = 2.0, tile_size: int = 8) -> np.ndarray:

@@ -53,12 +53,16 @@ class Keyframe:
         image_path   : Đường dẫn đến ảnh .jpg đã lưu
         embedding    : Vector embedding (đã tính sẵn lúc Semantic Filter), L2-normalized.
                         Không ghi vào keyframes.jsonl — chỉ dùng để lưu .npy riêng.
+        image_jpeg   : Ảnh đã mã hoá JPEG, giữ lại từ lúc trích xuất khi frame còn trong
+                        RAM. Có giá trị này thì Runner ghi thẳng ra đĩa, khỏi tua lại
+                        video (mỗi lần tua ~118 ms vì phải nhảy về I-frame).
     """
     keyframe_id: str
     frame_idx: int
     timestamp_ms: int
     image_path: str
     embedding: Optional[np.ndarray] = None
+    image_jpeg: Optional[bytes] = None
 
     def to_dict(self) -> dict:
         """Chuyển sang dict để ghi vào keyframes.jsonl."""

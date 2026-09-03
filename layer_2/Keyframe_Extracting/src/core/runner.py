@@ -31,21 +31,69 @@ from src.core.models import ShotRecord, ShotKeyframes, PipelineStatistics
 from src.core.metrics import (
     compute_diversity_score,
     compute_coverage_score,
+    evaluate_with_ground_truth,
 )
+
+
+_MAX_VIDEO_RETRIES = 2
 
 
 def _claim(video_id: str) -> bool:
     """Giành video giữa nhiều shard. O_CREAT|O_EXCL nguyên tử trên NFSv4 nên đúng
-    một shard thắng. CLAIMS_DIR rỗng = chạy đơn, luôn thắng."""
+    một shard thắng. CLAIMS_DIR rỗng = chạy đơn, luôn thắng.
+
+    Ghi SHARD_ID vào file để _reclaim_own_stale() biết claim nào là của mình."""
     claims = os.environ.get("CLAIMS_DIR")
     if not claims:
         return True
     os.makedirs(claims, exist_ok=True)
     try:
-        os.close(os.open(os.path.join(claims, video_id), os.O_CREAT | os.O_EXCL))
+        fd = os.open(os.path.join(claims, video_id), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.write(fd, os.environ.get("SHARD_ID", "").encode())
+        os.close(fd)
         return True
     except FileExistsError:
         return False
+
+
+def _reclaim_own_stale(pipeline_out: Path) -> int:
+    """Job chết giữa lúc xử lý một video sẽ để lại claim mồ côi, và vì claim không
+    bao giờ được xoá, video đó bị bỏ qua ở MỌI lần chạy lại mà không báo gì.
+
+    Chỉ xoá claim mang đúng SHARD_ID của mình: shard khác có thể đang chạy dở video
+    của nó, xoá claim của chúng sẽ làm hai shard cùng ghi vào một thư mục."""
+    claims = os.environ.get("CLAIMS_DIR")
+    if not claims or not os.path.isdir(claims):
+        return 0
+    me = os.environ.get("SHARD_ID", "")
+    reclaimed = 0
+    for video_id in os.listdir(claims):
+        if (pipeline_out / video_id / "statistics.json").exists():
+            continue
+        path = os.path.join(claims, video_id)
+        try:
+            with open(path) as f:
+                owner = f.read()
+            if owner == me:
+                os.unlink(path)
+                reclaimed += 1
+        except OSError:
+            continue
+    return reclaimed
+
+
+def _failure_count(pipeline_out: Path, video_id: str) -> int:
+    """Số lần video này đã lỗi ở các lần chạy trước (đếm bền vững qua restart)."""
+    path = pipeline_out / "_failures" / video_id
+    return int(path.read_text()) if path.exists() else 0
+
+
+def _record_failure(pipeline_out: Path, video_id: str) -> int:
+    path = pipeline_out / "_failures" / video_id
+    path.parent.mkdir(parents=True, exist_ok=True)
+    count = _failure_count(pipeline_out, video_id) + 1
+    path.write_text(str(count))
+    return count
 
 
 class KeyframeBenchmarkRunner:
@@ -70,33 +118,54 @@ class KeyframeBenchmarkRunner:
         self,
         extractor: BaseKeyframeExtractor,
         video_paths: List[Path],
-        shots_dir: Path,
+        shots_dir: Optional[Path],
         gt_dir: Optional[Path] = None,
+        evaluate: bool = False,
+        eval_threshold: float = 0.85,
     ) -> None:
         """
         Chạy benchmark cho một extractor trên tất cả video.
 
         Args:
-            extractor   : Pipeline extractor (PipelineA/B/C/D).
-            video_paths : Danh sách đường dẫn video .mp4.
-            shots_dir   : Thư mục chứa shot.jsonl hoặc shots.json của từng video.
-                          Cấu trúc: shots_dir/<video_stem>/shots.json
-            gt_dir      : Thư mục chứa ground truth.
+            extractor      : Pipeline extractor (PipelineA/B/C/D).
+            video_paths    : Danh sách đường dẫn video .mp4.
+            shots_dir      : Thư mục chứa shot.jsonl của từng video (None = no-shot mode).
+            gt_dir         : Thư mục chứa Ground Truth keyframes.
+            evaluate       : Bật chế độ đánh giá GT.
+            eval_threshold : Ngưỡng cosine similarity τ cho GT matching (default 0.85).
         """
         print(f"\n{'='*60}")
         print(f"  Benchmarking: {extractor.name.upper()}")
         print(f"{'='*60}")
 
         pipeline_out = self.output_dir / extractor.name
+        if pipeline_out.exists() and not pipeline_out.is_dir():
+            pipeline_out.unlink()
         pipeline_out.mkdir(parents=True, exist_ok=True)
+
+        reclaimed = _reclaim_own_stale(pipeline_out)
+        if reclaimed:
+            print(f"[Runner] Thu hồi {reclaimed} claim mồ côi của lần chạy trước.")
 
         extractor.setup()
 
         all_stats: List[PipelineStatistics] = []
 
+        stop_flag = pipeline_out / f"_stop{os.environ.get('SHARD_ID', '')}"
+
         for video_path in video_paths:
+            # Dừng êm: chỉ thoát ở ranh giới giữa hai video nên không mất video đang
+            # làm dở, và không để lại claim mồ côi.
+            if stop_flag.exists():
+                stop_flag.unlink()
+                print(f"[Runner] Nhận lệnh dừng êm, thoát sau khi xong video trước đó.")
+                break
             if (pipeline_out / video_path.stem / "statistics.json").exists():
                 print(f"[Runner] {video_path.name}: đã xong, bỏ qua.")
+                continue
+            fails = _failure_count(pipeline_out, video_path.stem)
+            if fails >= _MAX_VIDEO_RETRIES:
+                print(f"[Runner] {video_path.name}: đã lỗi {fails} lần, bỏ qua vĩnh viễn.")
                 continue
             if not _claim(video_path.stem):
                 continue
@@ -107,14 +176,15 @@ class KeyframeBenchmarkRunner:
                     shots_dir=shots_dir,
                     pipeline_out=pipeline_out,
                     gt_dir=gt_dir,
+                    evaluate=evaluate,
+                    eval_threshold=eval_threshold,
                 )
             except Exception as exc:
-                print(f"[Runner] LỖI {video_path.name}: {type(exc).__name__}: {exc}")
+                n = _record_failure(pipeline_out, video_path.stem)
+                print(f"[Runner] LỖI {video_path.name} (lần {n}/{_MAX_VIDEO_RETRIES}): {type(exc).__name__}: {exc}")
                 continue
             if stats:
                 all_stats.append(stats)
-                # Ghi ngay từng video: chạy 605 video mà crash giữa chừng thì
-                # không mất toàn bộ summary.
                 self._append_to_summary_csv([stats])
 
         extractor.teardown()
@@ -128,9 +198,11 @@ class KeyframeBenchmarkRunner:
         self,
         extractor: BaseKeyframeExtractor,
         video_path: Path,
-        shots_dir: Path,
+        shots_dir: Optional[Path],
         pipeline_out: Path,
         gt_dir: Optional[Path] = None,
+        evaluate: bool = False,
+        eval_threshold: float = 0.85,
     ) -> Optional[PipelineStatistics]:
         """
         Xử lý một video: đọc shots, extract keyframes, lưu output, tính stats.
@@ -141,7 +213,7 @@ class KeyframeBenchmarkRunner:
         video_stem = video_path.stem
         print(f"\n[Runner] Processing {video_path.name} ...")
 
-        # Đọc shots
+        # Đọc shots — shots_dir=None nghĩa là no-shot mode, tự chunk
         shots = self._load_shots(shots_dir, video_stem, video_path)
         if not shots:
             print(f"[Runner] WARNING: No shots found for {video_path.name}. Skipping.")
@@ -153,6 +225,8 @@ class KeyframeBenchmarkRunner:
 
         # Tạo thư mục output cho video này
         video_out = pipeline_out / video_stem
+        if video_out.exists() and not video_out.is_dir():
+            video_out.unlink()
         video_out.mkdir(parents=True, exist_ok=True)
         # Không có statistics.json nghĩa là lần trước chạy dở: xoá keyframe cũ,
         # nếu không Layer 3 sẽ đọc lẫn ảnh của hai lần chạy.
@@ -201,18 +275,33 @@ class KeyframeBenchmarkRunner:
         with open(video_out / "statistics.json", "w", encoding="utf-8") as f:
             json.dump(stats.__dict__, f, indent=4, ensure_ascii=False)
             
-        # Đánh giá Ground Truth (nếu có)
-        if gt_dir:
-            video_gt_dir = gt_dir / video_stem
-            if video_gt_dir.exists():
-                print(f"[Runner] Evaluating Ground Truth from {video_gt_dir} ...")
-                precision, recall, f1 = self._evaluate_gt(video_out, video_gt_dir)
-                stats.precision = precision
-                stats.recall = recall
-                stats.f1_score = f1
+        # Đánh giá Ground Truth (nếu bật --evaluate-keyframes)
+        if evaluate and gt_dir:
+            # Hỗ trợ cấu trúc gt_dir/Videos_L30/<video_stem>/ hoặc gt_dir/<video_stem>/
+            video_gt_dir = self._find_gt_dir(gt_dir, video_stem)
+            if video_gt_dir and video_gt_dir.exists():
+                print(f"[Runner] Evaluating GT from {video_gt_dir} (τ={eval_threshold}) ...")
+                result = self._evaluate_gt(video_out, video_gt_dir, eval_threshold)
+                stats.precision          = result.precision
+                stats.recall             = result.recall
+                stats.f1_score           = result.f1
+                stats.tp                 = result.tp
+                stats.fp                 = result.fp
+                stats.fn                 = result.fn
+                stats.avg_matched_similarity = result.avg_matched_sim
+                stats.eval_threshold     = eval_threshold
                 # Ghi đè lại statistics.json sau khi update
                 with open(video_out / "statistics.json", "w", encoding="utf-8") as f:
-                    json.dump(stats.__dict__, f, indent=4, ensure_ascii=False)
+                    json.dump(stats.__dict__, f, indent=4, ensure_ascii=False, default=str)
+                print(
+                    f"[Eval] {video_path.name}: "
+                    f"TP={result.tp}  FP={result.fp}  FN={result.fn}\n"
+                    f"       Precision={result.precision:.3f}  "
+                    f"Recall={result.recall:.3f}  F1={result.f1:.3f}\n"
+                    f"       AvgMatchedSim={result.avg_matched_sim:.3f}"
+                )
+            else:
+                print(f"[Runner] WARNING: GT dir not found for {video_stem} under {gt_dir}")
 
         print(
             f"[Runner] {video_path.name}: "
@@ -229,20 +318,27 @@ class KeyframeBenchmarkRunner:
 
     def _load_shots(
         self,
-        shots_dir: Path,
+        shots_dir: Optional[Path],
         video_stem: str,
         video_path: Path,
     ) -> List[ShotRecord]:
         """
         Đọc shots từ file JSON/JSONL.
 
-        Tìm kiếm theo thứ tự:
-          1. shots_dir/<video_stem>/shots.json  (shot detector benchmark output)
-          2. shots_dir/<video_stem>/shot.jsonl  (streaming format)
-          3. shots_dir/<video_stem>.json
+        Nếu shots_dir là None (no-shot mode) hoặc không tìm thấy shot file,
+        tự động chia video thành các chunk 300 frames để tránh tràn RAM.
 
-        Trả về list ShotRecord. Nếu không tìm thấy, trả về shot giả toàn video.
+        Tìm kiếm theo thứ tự:
+          1. shots_dir/<video_stem>/shots.json
+          2. shots_dir/<video_stem>/shot.jsonl
+          3. shots_dir/<video_stem>.json
+          4. shots_dir/<video_stem>.jsonl
         """
+        # No-shot mode: shots_dir is None — chunk full video directly
+        if shots_dir is None:
+            print(f"[Runner] No-shot mode for {video_stem}: chunking full video.")
+            return self._chunk_video(video_stem, video_path)
+
         candidates = [
             shots_dir / video_stem / "shots.json",
             shots_dir / video_stem / "shot.jsonl",
@@ -255,22 +351,7 @@ class KeyframeBenchmarkRunner:
 
         if shot_file is None:
             print(f"[Runner] No shots file found for {video_stem}. Chunking full video to prevent RAM OOM.")
-            cap = cv2.VideoCapture(str(video_path))
-            fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            cap.release()
-            
-            shots = []
-            chunk_size = 300  # Chia nhỏ mỗi shot tối đa 300 frames (~12s) để tránh tràn RAM
-            for i in range(0, max(1, total), chunk_size):
-                shots.append(ShotRecord(
-                    video_id=video_stem,
-                    shot_id=f"S{len(shots) + 1:04d}",
-                    start_frame=i,
-                    end_frame=min(i + chunk_size - 1, total - 1),
-                    fps=fps,
-                ))
-            return shots
+            return self._chunk_video(video_stem, video_path)
 
         shots: List[ShotRecord] = []
         with open(shot_file, encoding="utf-8") as f:
@@ -295,6 +376,44 @@ class KeyframeBenchmarkRunner:
             ))
 
         return shots
+
+    def _chunk_video(self, video_stem: str, video_path: Path) -> List[ShotRecord]:
+        """Chia video thành các chunk 300 frames khi không có shot file."""
+        cap = cv2.VideoCapture(str(video_path))
+        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        cap.release()
+        shots = []
+        chunk_size = 300
+        for i in range(0, max(1, total), chunk_size):
+            shots.append(ShotRecord(
+                video_id=video_stem,
+                shot_id=f"S{len(shots) + 1:04d}",
+                start_frame=i,
+                end_frame=min(i + chunk_size - 1, total - 1),
+                fps=fps,
+            ))
+        return shots
+
+    def _find_gt_dir(self, gt_dir: Path, video_stem: str) -> Optional[Path]:
+        """
+        Tìm thư mục Ground Truth cho video theo cấu trúc mới.
+
+        Hỗ trợ cả hai cấu trúc:
+          1. gt_dir/<video_stem>/           (flat)
+          2. gt_dir/<subdir>/<video_stem>/  (nested, e.g. gt_dir/Videos_L30/L30_V001/)
+        """
+        # Flat lookup first
+        flat = gt_dir / video_stem
+        if flat.exists():
+            return flat
+        # Nested: search one level deep
+        for subdir in gt_dir.iterdir():
+            if subdir.is_dir():
+                nested = subdir / video_stem
+                if nested.exists():
+                    return nested
+        return None
 
     def _can_decode(self, video_path: Path) -> bool:
         """Đọc thử frame đầu để phát hiện sớm codec không hỗ trợ (vd AV1), tránh loop hết mọi shot rồi mới lộ ra rỗng."""
@@ -352,26 +471,42 @@ class KeyframeBenchmarkRunner:
         Returns:
             Tổng dung lượng ảnh đã lưu (bytes).
         """
-        cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            print(f"[Runner] Cannot open {video_path} for frame saving.")
-            return 0
-
         total_bytes = 0
+        # Pipeline nào đã mã hoá sẵn lúc trích xuất thì ghi thẳng; chỉ mở video khi
+        # còn keyframe phải tua lại. Tua chiếm 12% tổng thời gian chạy (~163 ms/ảnh).
+        need_seek = [
+            kf for skf in shot_keyframes_list for kf in skf.keyframes if kf.image_jpeg is None
+        ]
 
         for skf in shot_keyframes_list:
             for kf in skf.keyframes:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, kf.frame_idx)
-                ret, frame = cap.read()
-                if not ret:
+                if kf.image_jpeg is None:
                     continue
-
                 img_filename = f"{kf.keyframe_id}.jpg"
-                img_path = video_out / img_filename
-                cv2.imwrite(str(img_path), frame)
-
+                (video_out / img_filename).write_bytes(kf.image_jpeg)
                 kf.image_path = img_filename
-                total_bytes += img_path.stat().st_size if img_path.exists() else 0
+                total_bytes += len(kf.image_jpeg)
+
+        if not need_seek:
+            return total_bytes
+
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            print(f"[Runner] Cannot open {video_path} for frame saving.")
+            return total_bytes
+
+        for kf in need_seek:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, kf.frame_idx)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+
+            img_filename = f"{kf.keyframe_id}.jpg"
+            img_path = video_out / img_filename
+            cv2.imwrite(str(img_path), frame)
+
+            kf.image_path = img_filename
+            total_bytes += img_path.stat().st_size if img_path.exists() else 0
 
         cap.release()
         return total_bytes
@@ -483,41 +618,91 @@ class KeyframeBenchmarkRunner:
                         for stats in all_stats:
                             writer.writerow(stats.to_dict())
 
-    def _evaluate_gt(self, pred_dir: Path, gt_dir: Path) -> Tuple[float, float, float]:
+    @staticmethod
+    def _encode_images_from_paths(
+        encoder,
+        image_paths: List[Path],
+        batch_size: int = 64,
+    ) -> np.ndarray:
         """
-        Đánh giá precision, recall, f1 bằng cách encode ảnh Predicted và GT,
-        rồi match bằng cosine similarity. Dùng MobileNetV3 cho nhanh.
+        Encode ảnh từ danh sách đường dẫn theo từng batch nhỏ.
+
+        Thay vì load toàn bộ ảnh vào RAM trước, method này đọc và xử lý
+        từng batch riêng biệt để tránh OOM khi có hàng trăm ảnh lớn.
+
+        Args:
+            encoder    : MobileNetEncoder đã load().
+            image_paths: Danh sách đường dẫn file ảnh.
+            batch_size : Số ảnh xử lý mỗi lần.
+
+        Returns:
+            numpy array shape (N, D) — embeddings đã L2-normalize.
         """
-        from src.components.mobilenet_encoder import MobileNetEncoder
-        from src.core.metrics import evaluate_with_ground_truth
-        
-        # Đọc ảnh Predicted (đã lưu ở output)
-        pred_imgs = []
-        for p in pred_dir.rglob("*.jpg"):
-            img = cv2.imread(str(p))
-            if img is not None:
-                pred_imgs.append((len(pred_imgs), img))
-                
-        # Đọc ảnh GT (.png hoặc .jpg)
-        gt_imgs = []
-        for ext in ["*.png", "*.jpg"]:
-            for p in gt_dir.rglob(ext):
+        all_embeddings: List[np.ndarray] = []
+        for batch_start in range(0, len(image_paths), batch_size):
+            batch_paths = image_paths[batch_start : batch_start + batch_size]
+            batch_frames = []
+            for local_idx, p in enumerate(batch_paths):
                 img = cv2.imread(str(p))
                 if img is not None:
-                    gt_imgs.append((len(gt_imgs), img))
-                    
-        if not pred_imgs or not gt_imgs:
-            print(f"[Runner] Thiếu ảnh để evaluate: {len(pred_imgs)} Pred, {len(gt_imgs)} GT.")
-            return 0.0, 0.0, 0.0
-            
-        print(f"[Runner] Đang encode {len(pred_imgs)} Pred và {len(gt_imgs)} GT images...")
-        encoder = MobileNetEncoder(batch_size=64)
-        encoder.load()
-        _, pred_emb = encoder.encode_batch(pred_imgs)
-        _, gt_emb = encoder.encode_batch(gt_imgs)
-        encoder.unload()
-        
-        precision, recall, f1 = evaluate_with_ground_truth(pred_emb, gt_emb, threshold=0.85)
-        print(f"[Runner] Precision={precision:.2f}, Recall={recall:.2f}, F1={f1:.2f}")
-        return precision, recall, f1
+                    batch_frames.append((batch_start + local_idx, img))
+            if batch_frames:
+                _, emb = encoder.encode_batch(batch_frames)
+                all_embeddings.append(emb)
+        if not all_embeddings:
+            return np.empty((0, 960), dtype=np.float32)
+        return np.concatenate(all_embeddings, axis=0)
 
+    def _evaluate_gt(
+        self,
+        pred_dir: Path,
+        gt_dir: Path,
+        threshold: float = 0.85,
+    ):
+        """
+        Đánh giá Precision/Recall/F1 bằng one-to-one greedy matching.
+
+        Sử dụng MobileNetV3 để encode ảnh nhanh, sau đó áp dụng
+        thuật toán matching từ Layer_2_Testing.txt với ngưỡng τ.
+
+        Ảnh được đọc theo từng batch nhỏ (không load toàn bộ vào RAM)
+        để tránh OOM với video có nhiều keyframe.
+
+        Returns:
+            EvalResult dataclass.
+        """
+        from src.components.mobilenet_encoder import MobileNetEncoder
+        from src.core.metrics import EvalResult
+
+        # --- Collect predicted keyframe paths (exclude embedding .npy / .json files) ---
+        pred_paths = sorted(pred_dir.glob("*.jpg"))
+        # Filter out unreadable files
+        pred_paths = [p for p in pred_paths if p.stat().st_size > 0]
+
+        # --- Collect GT keyframe paths (.jpg or .png) ---
+        gt_paths: List[Path] = []
+        for ext in ("*.jpg", "*.png"):
+            gt_paths.extend(sorted(gt_dir.glob(ext)))
+        gt_paths = sorted(gt_paths)
+        gt_paths = [p for p in gt_paths if p.stat().st_size > 0]
+
+        if not pred_paths or not gt_paths:
+            print(
+                f"[Runner] Cannot evaluate: {len(pred_paths)} Pred, {len(gt_paths)} GT images found."
+            )
+            return EvalResult(
+                tp=0, fp=len(pred_paths), fn=len(gt_paths),
+                gt_best_similarities=[-1.0] * len(gt_paths),
+            )
+
+        print(
+            f"[Runner] Encoding {len(pred_paths)} Pred + {len(gt_paths)} GT images "
+            f"(MobileNetV3, τ={threshold})..."
+        )
+        encoder = MobileNetEncoder(batch_size=32)
+        encoder.load()
+        pred_emb = self._encode_images_from_paths(encoder, pred_paths, batch_size=32)
+        gt_emb   = self._encode_images_from_paths(encoder, gt_paths,   batch_size=32)
+        encoder.unload()
+
+        return evaluate_with_ground_truth(pred_emb, gt_emb, threshold=threshold)

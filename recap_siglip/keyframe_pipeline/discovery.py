@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -113,6 +114,13 @@ def discover_dataset(dataset_root: Path) -> DatasetIndex:
     )
     if not video_dirs:
         raise DatasetLayoutError(f"No video directories found under {root}")
-    videos = tuple(discover_video(path) for path in video_dirs)
-    return DatasetIndex(root=root, videos=videos)
+    videos: list[VideoKeyframes] = []
+    for path in video_dirs:
+        try:
+            videos.append(discover_video(path))
+        except InvalidKeyframeInputError:
+            print(f"warning: skipping {path.name}: no keyframes found", file=sys.stderr)
+    if not videos:
+        raise DatasetLayoutError(f"No videos with keyframes found under {root}")
+    return DatasetIndex(root=root, videos=tuple(videos))
 

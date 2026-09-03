@@ -1,7 +1,7 @@
 from pymilvus import MilvusClient, DataType
 from indexdb.config import Config
 
-COLLECTIONS = {"beit3": 1024, "siglip": 1152, "siglip2": 1152, "clip32": 512}
+COLLECTIONS = {"beit3": 1024, "siglip2": 1152}
 
 class MilvusStore:
     def __init__(self, cfg: Config, suffix: str = ""):

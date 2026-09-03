@@ -26,7 +26,7 @@ from typing import List, Tuple
 # cv2.imencode nhả GIL nên thread thật sự chạy song song. Đo trên frame 1080p:
 # tuần tự 10.4 ms/frame, 4 thread 3.1, 8 thread 1.7 — kết quả giống hệt từng byte.
 # Máy dùng chung và sẽ chạy nhiều shard video song song, nên để chỉnh qua env.
-_JPEG_THREADS = int(os.environ.get("DAKE_THREADS", "4"))
+_JPEG_THREADS = int(os.environ.get("DAKE_THREADS", "2"))
 
 
 class DAKESelector:
@@ -69,8 +69,25 @@ class DAKESelector:
         Returns:
             List frame_idx là Candidate Frames, sort theo thứ tự thời gian.
         """
+        return self.select_with_scores(frames)[0]
+
+    def select_with_scores(
+        self,
+        frames: List[Tuple[int, np.ndarray]],
+    ) -> Tuple[List[int], List[float], List[float]]:
+        """
+        Giống select_candidates() nhưng trả thêm steepness và aggregated score.
+
+        Pipeline G cần steepness (chọn transition peak) và aggregated (score-aware
+        diversity NMS); tính lại chúng ở ngoài là encode JPEG lần hai cho cùng một
+        bộ frame — 6.4 ms/frame tuần tự, gấp đôi chi phí đắt nhất của DAKE.
+
+        Returns:
+            Tuple (candidate_indices, steepness, aggregated) — hai list sau cùng
+            độ dài và cùng thứ tự với frames.
+        """
         if not frames:
-            return []
+            return [], [], []
 
         # Bước 1: Tính JPEG size của từng frame
         indices = [idx for idx, _ in frames]
@@ -90,7 +107,7 @@ class DAKESelector:
         # Frame đầu shot = cảnh mới sau cut, nhưng steepness của nó bị gán 0.0
         # (không có frame trước để so trong list) nên gần như luôn out top-k.
         # Ép giữ làm candidate đại diện mở cảnh; DAKE lo phần motion bên trong.
-        return sorted(set(candidate_indices) | {indices[0]})
+        return sorted(set(candidate_indices) | {indices[0]}), steepness, aggregated
 
     # ------------------------------------------------------------------
     # Private methods

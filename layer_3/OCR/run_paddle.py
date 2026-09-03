@@ -24,6 +24,10 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default=None, metavar="FILE", help="Override paddle.output_file")
     parser.add_argument("--output-paddle-origin", default=None, metavar="FILE", help="Override paddle.output_file_paddle_origin")
     parser.add_argument("--limit", type=int, default=None, help="Override paddle.limit")
+    parser.add_argument("--claims-dir", default=None, metavar="DIR",
+                         help="Worker-pool mode: claim+process one video at a time under DIR, "
+                              "skipping videos already claimed/done -- for running several shards "
+                              "against the same input concurrently")
     return parser.parse_args()
 
 
@@ -44,6 +48,8 @@ def main() -> None:
         cfg["output_file_paddle_origin"] = args.output_paddle_origin
     if args.limit is not None:
         cfg["limit"] = args.limit
+    if args.claims_dir:
+        cfg["claims_dir"] = args.claims_dir
 
     from ocr.pipeline import run_paddle_pipeline
     run_paddle_pipeline(cfg)

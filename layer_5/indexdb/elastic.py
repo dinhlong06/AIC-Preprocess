@@ -14,6 +14,14 @@ MAPPING = {
                     # (same analyzer is used for search by default) makes
                     # those equivalent instead of needing perfect OCR text.
                     "filter": ["lowercase", "asciifolding"],
+                },
+                "vi_analyzer_strict": {
+                    "type": "custom",
+                    "tokenizer": "vi_tokenizer",
+                    # KHÔNG asciifolding: khác OCR, ASR (Whisper) không có vấn đề
+                    # mất dấu ở nguồn, nên giữ dấu để so khớp chính xác thay vì
+                    # fold cả những câu gõ đúng chính tả về chung một dạng.
+                    "filter": ["lowercase"],
                 }
             }
         }
@@ -30,7 +38,7 @@ MAPPING = {
             # NVIDIA API ở stage 2 layer_3/OCR (ocr_api) — giữ riêng để A/B.
             "ocr_api":     {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all"},
             "caption":     {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all"},
-            "transcript":  {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all"},
+            "transcript":  {"type": "text", "analyzer": "vi_analyzer_strict", "copy_to": "content_all"},
             "content_all": {"type": "text", "analyzer": "vi_analyzer"},
             "object_tags": {"type": "keyword"},
         }

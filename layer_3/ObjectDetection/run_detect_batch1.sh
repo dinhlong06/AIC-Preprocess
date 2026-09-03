@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Build + chạy Layer 3 - Object Detection (YOLO/ultralytics) trong Docker,
-# nguồn cố định là dataset_batch1/keyframe/keyframes.
+# nguồn cố định là output pipeline_g của layer_2/Keyframe_Extracting (batch1).
 #
 # Cách dùng:
-#   ./run_detect_batch1.sh                     # chạy full dataset_batch1/keyframe/keyframes
+#   ./run_detect_batch1.sh                     # chạy full benchmark_batch1/pipeline_g
 #   ./run_detect_batch1.sh --model yolo11m.pt  # đổi model
 #   ./run_detect_batch1.sh --no-gpu            # ép chạy CPU
 #
-# Input: dataset_batch1/keyframe/keyframes/ — loader.py quét đệ quy nên tự
-# gộp mọi video trong đó (tên file keyframe_id đã unique toàn cục, không lo trùng).
+# Input: layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g/ — loader.py quét đệ quy
+# nên tự gộp mọi video trong đó (tên file keyframe_id đã unique toàn cục, không lo trùng).
 # Override: FRAMES_DIR=/path/khac ./run_detect_batch1.sh
 # Output: detections.json ghi vào ./output_batch1/ (gộp chung mọi video).
 #
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 IMAGE_NAME="ai26-layer3-detect"
-FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/dataset_batch1/keyframe/keyframes}"
+FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g}"
 OUTPUT_DIR="$SCRIPT_DIR/output_batch1"
 # Không mount cache thì ultralytics tải lại weight mỗi lần chạy vào lớp ghi của
 # container, tức vào ổ / của host vốn đã đầy.

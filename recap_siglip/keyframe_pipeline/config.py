@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-DEFAULT_SIGLIP_MODEL_ID = "google/siglip-so400m-patch14-384"
+DEFAULT_SIGLIP_MODEL_ID = "google/siglip2-so400m-patch14-384"
 # Phải là tag -instruct: `qwen3-vl:8b` trần trỏ cùng digest với `8b-thinking`,
 # bản đó đốt sạch num_predict vào <think> rồi trả caption rỗng.
 DEFAULT_RECAP_MODEL = "qwen3-vl:8b-instruct"

@@ -1,1 +1,1 @@
-# Extractors sub-package: 4 pipeline implementations
+# Extractors sub-package: 5 pipeline implementations

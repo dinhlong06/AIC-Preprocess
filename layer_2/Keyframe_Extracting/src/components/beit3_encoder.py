@@ -21,6 +21,7 @@ import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Tuple
 
@@ -142,12 +143,27 @@ class BEiT3Encoder:
             return [], np.empty((0, 1024), dtype=np.float32)
 
         indices = [idx for idx, _ in frames]
-        tensors = [self._preprocess(img) for _, img in frames]
+        imgs = [img for _, img in frames]
+        n = len(imgs)
+        bs = self.batch_size
+
+        def _prep_range(lo: int, hi: int) -> List[torch.Tensor]:
+            return [self._preprocess(im) for im in imgs[lo:hi]]
 
         all_embeddings = []
-        with torch.no_grad():
-            for i in range(0, len(tensors), self.batch_size):
-                batch = torch.stack(tensors[i : i + self.batch_size]).to(self.device)
+        # GPU rảnh trong lúc preprocess CPU-bound và ngược lại — 1 thread nền
+        # chuẩn bị batch kế tiếp trong lúc GPU forward batch hiện tại, thay vì
+        # preprocess hết rồi mới forward tuần tự.
+        with torch.no_grad(), ThreadPoolExecutor(max_workers=1) as prefetch:
+            next_batch = prefetch.submit(_prep_range, 0, min(bs, n))
+            for i in range(0, n, bs):
+                tensors = next_batch.result()
+                hi = min(i + bs, n)
+                nxt_lo, nxt_hi = hi, min(hi + bs, n)
+                if nxt_lo < n:
+                    next_batch = prefetch.submit(_prep_range, nxt_lo, nxt_hi)
+
+                batch = torch.stack(tensors).to(self.device)
                 out = self._model.beit3(
                     textual_tokens=None,
                     visual_tokens=batch,

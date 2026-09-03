@@ -31,7 +31,7 @@ fi
 
 echo "== Stage 2: ising-calibration correction (host, batch1) =="
 (cd "$SCRIPT_DIR" && python3 run_correct.py \
-    --frames "$PROJECT_ROOT/dataset_batch1/keyframe/keyframes" \
+    --frames "$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g" \
     --paddle-output "$VIETOCR_OUTPUT" \
     --output "$SCRIPT_DIR/output_batch1/output_hybrid.json")
 

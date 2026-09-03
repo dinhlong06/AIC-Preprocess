@@ -8,13 +8,16 @@ Gồm hai nhóm metric:
        - Coverage Score: % thời lượng shot được đại diện bởi keyframe.
 
   2. Supervised (chỉ dùng khi có Ground Truth ảnh keyframe):
-       - Precision, Recall, F1 dựa trên Hungarian Matching.
+       - One-to-one greedy matching theo cosine similarity.
+       - TP, FP, FN → Precision, Recall, F1, Average Matched Similarity.
 """
 
 from __future__ import annotations
 
-import numpy as np
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
+
+import numpy as np
 
 from src.core.models import ShotKeyframes, ShotRecord
 
@@ -103,62 +106,111 @@ def compute_coverage_score(
 
 
 # ---------------------------------------------------------------------------
-# Supervised metrics (Hungarian Matching)
+# Supervised metrics — One-to-one Greedy Matching
 # ---------------------------------------------------------------------------
 
-def _cosine_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+@dataclass
+class EvalResult:
     """
-    Tính ma trận cosine similarity giữa hai tập embedding.
+    Kết quả đánh giá một video theo phương pháp one-to-one matching.
 
-    Args:
-        a : shape (M, D), L2-normalized.
-        b : shape (N, D), L2-normalized.
-
-    Returns:
-        Ma trận shape (M, N).
+    Fields:
+        tp                   : True Positives (số cặp matched thành công)
+        fp                   : False Positives (predicted không match được GT nào)
+        fn                   : False Negatives (GT không được match bởi predicted nào)
+        precision            : TP / (TP + FP)
+        recall               : TP / (TP + FN)
+        f1                   : Harmonic mean of Precision and Recall
+        avg_matched_sim      : Trung bình cosine similarity của các cặp matched (0.0 nếu TP=0)
+        gt_best_similarities : similarity tốt nhất của từng GT (-1.0 nếu unmatched)
     """
-    return a @ b.T
+    tp: int = 0
+    fp: int = 0
+    fn: int = 0
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    avg_matched_sim: float = 0.0
+    gt_best_similarities: List[float] = field(default_factory=list)
 
 
 def evaluate_with_ground_truth(
     pred_embeddings: np.ndarray,
     gt_embeddings: np.ndarray,
-    threshold: float = 0.8,
-) -> Tuple[float, float, float]:
+    threshold: float = 0.85,
+) -> EvalResult:
     """
-    Tính Precision, Recall, F1 dựa trên Nearest Neighbor Matching.
+    Đánh giá Keyframe Extraction bằng one-to-one greedy matching.
 
-    Mỗi GT keyframe được "match" với predicted keyframe có similarity cao nhất.
-    Nếu max similarity >= threshold thì coi là True Positive.
+    Theo protocol trong Layer_2_Testing.txt:
+      Step 1 — Tính cosine similarity matrix sim[P, G].
+      Step 2 — Lọc theo threshold τ: chỉ giữ cặp có sim >= τ.
+      Step 3 — Greedy one-to-one matching:
+                  Sắp xếp tất cả cặp (p, g) có sim >= τ theo thứ tự giảm dần.
+                  Lần lượt gán cặp (p, g) nếu cả p và g chưa được gán.
+                  → Đảm bảo mỗi GT chỉ match với tối đa 1 Prediction và ngược lại.
+      Step 4 — Đếm TP (cặp matched), FP (predicted chưa match), FN (GT chưa match).
+      Step 5 — Tính Precision, Recall, F1, Avg Matched Similarity.
 
     Args:
-        pred_embeddings : shape (P, D) — embedding các keyframe dự đoán, L2-normalized.
+        pred_embeddings : shape (P, D) — embedding Prediction, L2-normalized.
         gt_embeddings   : shape (G, D) — embedding Ground Truth, L2-normalized.
-        threshold       : Ngưỡng cosine similarity để coi là match (default 0.8).
+        threshold       : Ngưỡng cosine similarity τ (default 0.85).
 
     Returns:
-        Tuple (precision, recall, f1) trong khoảng [0.0, 1.0].
+        EvalResult với đầy đủ TP, FP, FN, Precision, Recall, F1, AvgMatchedSim.
     """
-    if len(pred_embeddings) == 0 or len(gt_embeddings) == 0:
-        return 0.0, 0.0, 0.0
+    P = len(pred_embeddings)
+    G = len(gt_embeddings)
 
-    sim_matrix = _cosine_similarity_matrix(pred_embeddings, gt_embeddings)
-    # shape (P, G)
+    if P == 0 or G == 0:
+        return EvalResult(
+            tp=0, fp=P, fn=G,
+            precision=0.0, recall=0.0, f1=0.0,
+            avg_matched_sim=0.0,
+            gt_best_similarities=[-1.0] * G,
+        )
 
-    # Recall: với mỗi GT, có predicted nào match không?
-    best_sim_per_gt = sim_matrix.max(axis=0)        # shape (G,)
-    tp_recall = (best_sim_per_gt >= threshold).sum()
-    recall = float(tp_recall) / len(gt_embeddings)
+    # Step 1 — Cosine similarity matrix (P × G)
+    # Both arrays should be L2-normalized; use matmul for efficiency
+    pred_norm = pred_embeddings / (np.linalg.norm(pred_embeddings, axis=1, keepdims=True) + 1e-8)
+    gt_norm   = gt_embeddings   / (np.linalg.norm(gt_embeddings,   axis=1, keepdims=True) + 1e-8)
+    sim_matrix = pred_norm @ gt_norm.T   # (P, G)
 
-    # Precision: với mỗi predicted, có GT nào match không?
-    best_sim_per_pred = sim_matrix.max(axis=1)      # shape (P,)
-    tp_precision = (best_sim_per_pred >= threshold).sum()
-    precision = float(tp_precision) / len(pred_embeddings)
+    # Step 2 — Collect all valid pairs (sim >= threshold), sorted descending
+    rows, cols = np.where(sim_matrix >= threshold)
+    sims       = sim_matrix[rows, cols]
+    order      = np.argsort(-sims)          # descending by similarity
+    rows, cols, sims = rows[order], cols[order], sims[order]
 
-    # F1
-    if precision + recall > 0:
-        f1 = 2 * precision * recall / (precision + recall)
-    else:
-        f1 = 0.0
+    # Step 3 — Greedy one-to-one assignment
+    matched_pred = [False] * P
+    matched_gt   = [False] * G
+    gt_best_sim  = [-1.0]  * G             # -1 = unmatched
+    matched_sims: List[float] = []
 
-    return precision, recall, f1
+    for p_idx, g_idx, sim in zip(rows, cols, sims):
+        if matched_pred[p_idx] or matched_gt[g_idx]:
+            continue
+        matched_pred[p_idx] = True
+        matched_gt[g_idx]   = True
+        gt_best_sim[g_idx]  = float(sim)
+        matched_sims.append(float(sim))
+
+    # Step 4 — Count TP, FP, FN
+    tp = len(matched_sims)
+    fp = P - tp
+    fn = G - tp
+
+    # Step 5 — Metrics
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+    avg_sim = float(np.mean(matched_sims)) if matched_sims else 0.0
+
+    return EvalResult(
+        tp=tp, fp=fp, fn=fn,
+        precision=precision, recall=recall, f1=f1,
+        avg_matched_sim=avg_sim,
+        gt_best_similarities=gt_best_sim,
+    )

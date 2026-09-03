@@ -121,7 +121,7 @@ class PipelineA(BaseKeyframeExtractor):
                 indices, embeddings = self._encoder.encode_batch(frames)
 
                 # Semantic Filter
-                selected, selected_embeddings = self._filter.filter(indices, embeddings)
+                selected, selected_embeddings, _ = self._filter.filter(indices, embeddings)
 
                 # Tạo Keyframe objects
                 keyframes = _make_keyframes(selected, selected_embeddings, fps, shot.shot_id)

@@ -55,7 +55,7 @@ def build_pipeline_b(cfg: dict, args: argparse.Namespace):
     return PipelineB(
         similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
         device=args.device or mobile_cfg.get("device"),
-        batch_size=args.batch_size or mobile_cfg.get("batch_size", 64),
+        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
     )
 
 
@@ -87,7 +87,76 @@ def build_pipeline_d(cfg: dict, args: argparse.Namespace):
         window_size=dake_cfg.get("window_size", 3),
         similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
         device=args.device or mobile_cfg.get("device"),
-        batch_size=args.batch_size or mobile_cfg.get("batch_size", 64),
+        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
+    )
+
+
+def build_pipeline_e(cfg: dict, args: argparse.Namespace):
+    """Pipeline E: optical flow -> BEiT-3 -> semantic filtering."""
+    from src.extractors.pipeline_e import PipelineE
+    beit3_cfg = cfg.get("beit3", {})
+    motion_cfg = cfg.get("motion", {})
+    semantic_cfg = cfg.get("semantic", {})
+    return PipelineE(
+        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
+        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
+        motion_threshold=(args.motion_threshold if args.motion_threshold is not None else motion_cfg.get("motion_threshold", 1.0)),
+        min_frame_distance=(args.min_distance if args.min_distance is not None else motion_cfg.get("min_frame_distance", 5)),
+        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
+        device=args.device or beit3_cfg.get("device"),
+        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
+    )
+
+
+def build_pipeline_f(cfg: dict, args: argparse.Namespace):
+    """Pipeline F: frame difference -> MobileNet -> semantic filtering."""
+    from src.extractors.pipeline_f import PipelineF
+    mobile_cfg = cfg.get("mobilenet", {})
+    motion_cfg = cfg.get("motion", {})
+    semantic_cfg = cfg.get("semantic", {})
+    return PipelineF(
+        motion_threshold=(args.motion_threshold if args.motion_threshold is not None else motion_cfg.get("motion_threshold", 5.0)),
+        min_frame_distance=(args.min_distance if args.min_distance is not None else motion_cfg.get("min_frame_distance", 5)),
+        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.92),
+        device=args.device or mobile_cfg.get("device"),
+        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
+    )
+
+
+def build_pipeline_g(cfg: dict, args: argparse.Namespace):
+    """Khởi tạo PipelineG (Upgraded multi-stage pipeline) từ config + CLI args."""
+    from src.extractors.pipeline_g import PipelineG
+    beit3_cfg = cfg.get("beit3", {})
+    dake_cfg = cfg.get("dake", {})
+    semantic_cfg = cfg.get("semantic", {})
+    diversity_cfg = cfg.get("diversity", {})
+    transition_cfg = cfg.get("transition", {})
+    veto_cfg = cfg.get("veto", {})
+    sharpness_cfg = cfg.get("sharpness", {})
+    min_dist = getattr(args, "min_frame_distance", None) or cfg.get("min_frame_distance", 5)
+    return PipelineG(
+        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
+        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
+        candidate_ratio=args.candidate_ratio or dake_cfg.get("candidate_ratio", 0.05),
+        window_size=dake_cfg.get("window_size", 3),
+        min_frame_distance=min_dist,
+        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
+        redundancy_threshold=getattr(args, "redundancy_threshold", None) or diversity_cfg.get("redundancy_threshold", 0.88),
+        peak_prominence_window=transition_cfg.get("prominence_window", 3),
+        peak_percentile=transition_cfg.get("peak_percentile", 90.0),
+        min_keyframes_per_shot=diversity_cfg.get("min_keyframes_per_shot", 1),
+        enable_transition=transition_cfg.get("enabled", True),
+        max_history_size=semantic_cfg.get("max_history_size", 512),
+        gap_decay_start_frames=semantic_cfg.get("gap_decay_start_frames", 150),
+        max_gap_frames=semantic_cfg.get("max_gap_frames", 300),
+        enable_veto=veto_cfg.get("enabled", True),
+        veto_min_brightness=veto_cfg.get("min_brightness", 15.0),
+        veto_max_brightness=veto_cfg.get("max_brightness", 240.0),
+        veto_min_variance=veto_cfg.get("min_variance", 15.0),
+        enable_sharpness=sharpness_cfg.get("enabled", True),
+        sharpness_window_radius=sharpness_cfg.get("window_radius", 4),
+        device=args.device or beit3_cfg.get("device"),
+        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
     )
 
 
@@ -96,6 +165,9 @@ _PIPELINE_BUILDERS = {
     "pipeline_b": (build_pipeline_b, "configs/pipeline_b.yaml"),
     "pipeline_c": (build_pipeline_c, "configs/pipeline_c.yaml"),
     "pipeline_d": (build_pipeline_d, "configs/pipeline_d.yaml"),
+    "pipeline_e": (build_pipeline_e, "configs/pipeline_e.yaml"),
+    "pipeline_f": (build_pipeline_f, "configs/pipeline_f.yaml"),
+    "pipeline_g": (build_pipeline_g, "configs/pipeline_g.yaml"),
 }
 
 
@@ -105,14 +177,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ví dụ:
-  # Chạy Pipeline C (đề xuất):
-  python cli.py --pipeline pipeline_c --video_dir dataset/raw_video
+  # Chạy Pipeline G (Upgraded multi-stage pipeline):
+  python cli.py --pipeline pipeline_g --video_dir dataset/raw_video
 
   # Chạy tất cả pipeline:
   python cli.py --pipeline all --video_dir dataset/raw_video
 
   # Override tham số:
-  python cli.py --pipeline pipeline_c --threshold 0.85 --candidate_ratio 0.05
+  python cli.py --pipeline pipeline_g --threshold 0.88 --candidate_ratio 0.05
         """,
     )
 
@@ -120,9 +192,9 @@ Ví dụ:
     parser.add_argument(
         "--pipeline",
         type=str,
-        default="pipeline_c",
-        choices=["pipeline_a", "pipeline_b", "pipeline_c", "pipeline_d", "all"],
-        help="Pipeline để chạy. 'all' sẽ chạy toàn bộ 4 pipeline lần lượt.",
+        default="pipeline_g",
+        choices=["pipeline_a", "pipeline_b", "pipeline_c", "pipeline_d", "pipeline_e", "pipeline_f", "pipeline_g", "all"],
+        help="Pipeline để chạy. 'all' sẽ chạy toàn bộ pipeline lần lượt.",
     )
     parser.add_argument(
         "--config",
@@ -143,6 +215,12 @@ Ví dụ:
         type=str,
         default="dataset/shots",
         help="Thư mục chứa shots.json của từng video.",
+    )
+    parser.add_argument(
+        "--no-shots",
+        action="store_true",
+        default=False,
+        help="Không sử dụng shot detection, trích xuất trực tiếp trên toàn bộ video.",
     )
     parser.add_argument(
         "--output_dir",
@@ -175,9 +253,27 @@ Ví dụ:
 
     # Algorithm params
     parser.add_argument("--threshold", type=float, default=None,
-                        help="Cosine similarity threshold [0-1] (override config).")
+                        help="Cosine similarity threshold [0-1] for extraction deduplication (override config).")
     parser.add_argument("--candidate_ratio", type=float, default=None,
                         help="DAKE candidate ratio [0.01-0.20] (override config).")
+    parser.add_argument("--min_distance", type=int, default=None,
+                        help="Minimum frame distance for motion-based pipelines E/F.")
+    parser.add_argument("--motion_threshold", type=float, default=None,
+                        help="Motion threshold for optical-flow/frame-difference pipelines E/F.")
+
+    # Evaluation flags
+    parser.add_argument(
+        "--evaluate_keyframes",
+        action="store_true",
+        default=False,
+        help="Bật đánh giá chất lượng keyframe so với Ground Truth (cần --gt_dir).",
+    )
+    parser.add_argument(
+        "--eval_threshold",
+        type=float,
+        default=0.85,
+        help="Ngưỡng cosine similarity τ cho GT matching khi --evaluate_keyframes (default 0.85).",
+    )
 
     args = parser.parse_args()
 
@@ -224,7 +320,18 @@ Ví dụ:
 
         extractor = builder_fn(cfg, args)
         gt_dir = Path(args.gt_dir) if args.gt_dir else None
-        runner.run(extractor, video_paths, shots_dir, gt_dir=gt_dir)
+
+        if args.evaluate_keyframes and not gt_dir:
+            print("[CLI] WARNING: --evaluate_keyframes được bật nhưng không có --gt_dir. Bỏ qua evaluation.")
+
+        runner.run(
+            extractor,
+            video_paths,
+            None if (args.no_shots or not shots_dir.exists()) else shots_dir,
+            gt_dir=gt_dir,
+            evaluate=args.evaluate_keyframes,
+            eval_threshold=args.eval_threshold,
+        )
 
     print(f"\n[CLI] Benchmark hoàn thành. Kết quả tại: {output_dir.resolve()}")
     print(f"[CLI] Summary CSV: {(output_dir / 'benchmark_summary.csv').resolve()}")

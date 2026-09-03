@@ -24,7 +24,7 @@ def build_frame_doc(rec: dict) -> dict:
         "ocr_text": "",
         "ocr_api": "",
         "caption": "",
-        "embeddings": {"beit3": False, "siglip": False, "siglip2": False, "clip32": False},
+        "embeddings": {"beit3": False, "siglip2": False},
         "synced": {"elastic": False, "milvus": False},
     }
 

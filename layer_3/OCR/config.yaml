@@ -8,8 +8,8 @@ paddle:
   # ../../layer_2/Keyframe_Extracting/benchmark/<PIPELINE> -- this is only the
   # fallback for calling run_paddle.py directly without the wrapper script.
   input_dir: "../../layer_2/Keyframe_Extracting/benchmark/pipeline_c"
-  # VietOCR result (with per-box fallback to Paddle's own recognizer below
-  # confidence_threshold, see ocr/paddle_engine.py) -- this is what stage 2 corrects.
+  # VietOCR result (every non-empty box, no confidence filter, see
+  # ocr/paddle_engine.py) -- this is what stage 2 corrects.
   output_file: "./output/output_vietocr.json"
   # Paddle's own recognizer output, untouched by the fallback above -- kept
   # only for comparing the two recognizers, not consumed by stage 2.
@@ -28,20 +28,18 @@ paddle:
   # in frame_skip.py) and re-validated for the source in use.
   preprocess: false
 
-  # Frame-skip heuristics, cheapest first. All run on the CPU before GPU
-  # inference. Set any threshold to 0 to disable that check.
+  # Frame-skip: only blur remains (blank + near-duplicate similarity skip
+  # removed 2026-08-27 -- see ocr/frame_skip.py docstring for why. Set to 0
+  # to disable.
   skip:
-    blank_brightness_threshold: 15   # mean luma below this = skip as blank
     blur_threshold: 50.0             # Laplacian variance below this = skip as blurry
-    similarity_hamming_threshold: 8  # pHash distance <= this = reuse previous frame's result
 
   ocr:
     lang: "vi"
-    confidence_threshold: 0.75
-    # PP-OCRv6 ignores `lang` entirely (en/vi byte-identical); its marks are
-    # usually wrong while base letters are right, so ascii strips them --
-    # stage 2 restores the correct marks from the image instead.
-    ascii: true
+    # PP-OCRv6 ignores `lang` entirely (en/vi byte-identical) and its marks
+    # are often wrong (see paddleocr-vietnamese-charset-gap memory) -- kept
+    # as-is, no ascii-stripping workaround; stage 2 restores correct marks
+    # from the image regardless.
     ocr_version: null   # omit for paddleocr's current default (PP-OCRv6 as of 3.7.0)
     # Measured to NOT fix word-merging ("TINCHINH"-type errors) -- kept only
     # as an escape hatch, do not set without re-testing (see memory).
@@ -59,3 +57,23 @@ correct:
   # visibly at 6 (key already warmed up from a day of testing) -- 4 is the
   # current default based on that live observation. Re-measure before raising.
   workers: 4
+
+# Third stage (run_vlm_correct.py, separate GPU container, Dockerfile.vlm) --
+# targeted correction for boxes still merged into a space-less blob after
+# merge_recognizers.py (~0.55% of boxes on batch1, see ocr/vlm_correct.py
+# docstring for the full measurement/decision history). Runs on the merged
+# output of merge_recognizers.py, not on paddle's raw output directly.
+vlm_correct:
+  frames_dir: "../../layer_2/Keyframe_Extracting/benchmark/pipeline_c"
+  merged_input: "./output/output_vietocr_merged.json"
+  output_file: "./output/output_vlm_corrected.json"
+  model_dir: "../OCR_v2/models/qwen3-vl-4b-vi-ocr"
+  # boxes per generate() call -- 60 measured batched cleanly on an 11GB
+  # shared-cluster GPU (~0.4-0.5s/box); raise only after re-checking VRAM
+  # headroom (full-frame batching OOM'd at this size, see chat history).
+  # Lowered to 16 on 2026-08-28: batch1 real run OOM'd 9x in a row at 60 --
+  # error logs showed near-zero free VRAM margin even before contention, so
+  # a smaller batch buys more headroom against other jobs' transient spikes.
+  batch_size: 16
+  # Save output_file + progress sidecar every N boxes corrected. 0 disables.
+  checkpoint_every: 500

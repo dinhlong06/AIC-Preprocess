@@ -54,19 +54,69 @@ class Reader:
                    frame_ids: list[str] | None = None) -> list[dict]:
         # multi_match cả ocr_text (PaddleOCR gốc) và ocr_api (đã hiệu đính) vì
         # không biết trước nguồn nào khớp; fuzziness="AUTO" chịu lỗi chính tả OCR.
-        es_query = {"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"], "fuzziness": "AUTO"}}
+        # must=OR giữ nguyên recall (1 từ khớp là đủ vào candidate); should lặp lại
+        # chính điều kiện đó với minimum_should_match="2<75%" + boost=5 làm điểm CỘNG
+        # THÊM, không lọc bớt gì -- kéo candidate khớp PHẦN LỚN từ lên gần đầu, đỡ bị
+        # BM25 tự chuẩn hoá độ dài chôn vùi dưới hàng trăm candidate ngắn chỉ khớp 1 từ
+        # (đo thật, query 3 từ: không should thì 11/20 candidate khớp đủ từ rớt khỏi
+        # top 500; should+boost=5 kéo 19/20 lên top 20).
+        # ⚠️ Từng dùng operator="and" (đòi ĐỦ 100% từ) -- đổi vì gõ dư 1 từ không có
+        # trong OCR của đúng frame (vd tìm "chùa một cột" gõ thêm "hà nội" mà OCR frame
+        # chỉ có "chùa một cột") làm should KHÔNG kích hoạt cho frame đúng dù nó khớp
+        # 3/4 từ, trong khi frame SAI khác chỉ cần tình cờ đủ 4/4 từ vẫn được thưởng
+        # trọn boost -- đo được: frame đúng rớt xuống hạng 148-149/200.
+        # ⚠️ Đổi tiếp sang "75%" trần rồi phát hiện SAI cho query NGẮN: query 3 từ,
+        # ES làm tròn % kiểu không như ceil() tưởng -- mọi mức dưới 100% (34/50/67/75%)
+        # đều rơi về "chỉ cần 1/3 từ" (test trực tiếp: 2/20 lọt top 20, gần như không
+        # còn tác dụng gì so với operator="and" cũ). "75%" chỉ đúng ý cho query DÀI
+        # (4 từ trở lên) chứ không phải mọi độ dài. Cú pháp combo "2<75%" (dưới 2 từ
+        # optional thì bắt buộc đủ 2, từ 2 trở lên thì dùng 75%) giải quyết được cả
+        # hai đầu cùng lúc -- đo lại: query 3 từ 19/20 lọt top 20 (khớp lại kỳ vọng),
+        # query 4 từ gõ dư vẫn giữ hạng 51-84 (không hồi quy so với "75%" trần).
+        # should thứ 2 (KHÔNG fuzziness, boost=3) tách doc khớp CHÍNH XÁC khỏi doc chỉ
+        # khớp nhờ fuzzy sửa chính tả: should fuzzy đếm từ khớp mà không phân biệt hai
+        # loại này nên cả hai ăn trọn boost=5 như nhau; thêm clause exact thì doc khớp
+        # chính xác ăn 5+3, doc nhờ fuzzy vẫn ăn 5 (không bị loại -- đó là lý do có fuzzy).
+        # boost=3 CHƯA ĐO, chỉnh theo bộ đo top-20 nếu query gõ sai chính tả bị chôn.
+        # ⚠️ fuzziness AUTO -> 1 (2026-08-21, đồng bộ với backend/core/stores/elastic.py
+        # cùng ngày): vi_tokenizer gộp 2 âm tiết thành MỘT token trước khi so khớp
+        # ("châu đốc" -> token "chau doc", 8 ký tự); AUTO cho token >5 ký tự cho phép
+        # sai lệch 2 ký tự, đủ để "chau doc" fuzzy-khớp "cham soc" ("chăm sóc" -- nghĩa
+        # khác hẳn, không phải lỗi OCR). must=OR trần ở đây MẤT PHÒNG THỦ càng nặng hơn
+        # elastic.py (chỉ cần 1 token khớp fuzzy nhầm là đã vào candidate). Xem docstring
+        # search_ocr ở elastic.py cho bằng chứng đo trên ES sống.
+        es_query = {"bool": {
+            "must": [{"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"], "fuzziness": 1}}],
+            "should": [{"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"],
+                                         "minimum_should_match": "2<75%", "fuzziness": 1, "boost": 5}},
+                       {"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"],
+                                         "minimum_should_match": "2<75%", "boost": 3}}],
+        }}
         return self._search(es_query, top_k, video_ids, frame_ids)
 
     def search_asr(self, query: str, top_k: int = 100, video_ids: list[str] | None = None,
                    frame_ids: list[str] | None = None, min_score: float | None = None) -> list[dict]:
-        es_query = {"match": {"transcript": {"query": query, "fuzziness": "AUTO"}}}
+        # fuzziness AUTO -> 1 (2026-08-21) -- cùng bug với search_ocr ở trên, transcript
+        # dùng chung vi_tokenizer nên cùng bị gộp token và cùng fuzzy-khớp nhầm từ khác.
+        es_query = {"bool": {
+            "must": [{"match": {"transcript": {"query": query, "fuzziness": 1}}}],
+            "should": [{"match": {"transcript": {"query": query, "minimum_should_match": "2<75%",
+                                                  "fuzziness": 1, "boost": 5}}},
+                       {"match": {"transcript": {"query": query, "minimum_should_match": "2<75%", "boost": 3}}}],
+        }}
         return self._search(es_query, top_k, video_ids, frame_ids, min_score)
 
     def search_all(self, query: str, top_k: int = 100, video_ids: list[str] | None = None,
                    frame_ids: list[str] | None = None) -> list[dict]:
         # content_all gộp ocr_text/ocr_api/caption/transcript qua copy_to — dùng khi
         # không cần biết khớp từ nguồn nào, chỉ cần tìm nhanh trên toàn bộ text.
-        es_query = {"match": {"content_all": {"query": query, "fuzziness": "AUTO"}}}
+        # fuzziness AUTO -> 1 (2026-08-21), cùng lý do search_ocr/search_asr ở trên.
+        es_query = {"bool": {
+            "must": [{"match": {"content_all": {"query": query, "fuzziness": 1}}}],
+            "should": [{"match": {"content_all": {"query": query, "minimum_should_match": "2<75%",
+                                                   "fuzziness": 1, "boost": 5}}},
+                       {"match": {"content_all": {"query": query, "minimum_should_match": "2<75%", "boost": 3}}}],
+        }}
         return self._search(es_query, top_k, video_ids, frame_ids)
 
     def search_object(self, labels: list[str], top_k: int = 100, video_ids: list[str] | None = None,

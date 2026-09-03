@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Build + chạy nhánh SigLIP của keyframe_pipeline trong Docker,
-# nguồn cố định là dataset_batch1/keyframe/keyframes.
+# nguồn cố định là layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g.
 #
 # Cách dùng:
-#   ./run_siglip_batch1.sh                     # embed toàn bộ dataset_batch1/keyframe/keyframes
+#   ./run_siglip_batch1.sh                     # embed toàn bộ pipeline_g
 #   ./run_siglip_batch1.sh --overwrite          # ghi đè .npy đã có
 #   ./run_siglip_batch1.sh --batch-size 64
 #   FRAMES_DIR=/path/khac ./run_siglip_batch1.sh
+#   OUTPUT_DIR=/path/khac ./run_siglip_batch1.sh
 #
-# Input : dataset_batch1/keyframe/keyframes/<VIDEO_ID>/<keyframe_id>.jpg
+# Input : layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g/<VIDEO_ID>/<keyframe_id>.jpg
+#         (thư mục _failures không khớp pattern <PREFIX>nn_Vnnn nên bị discover_dataset bỏ qua)
 # Output: ./artifacts/siglip_batch1/<VIDEO_ID>.npy + <VIDEO_ID>_ids.json — cùng format với
 #         embedding BEiT-3 mà layer 2 ghi ra, chỉ khác số chiều (1152 vs 1024).
 #
@@ -24,8 +26,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 IMAGE_NAME="ai26-siglip"
-FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/dataset_batch1/keyframe/keyframes}"
-OUTPUT_DIR="$SCRIPT_DIR/artifacts/siglip_batch1"
+FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g}"
+OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/artifacts/siglip_batch1}"
 CACHE_DIR="${CACHE_DIR:-$SCRIPT_DIR/.model_cache/huggingface}"
 mkdir -p "$OUTPUT_DIR" "$CACHE_DIR"
 
