@@ -15,6 +15,10 @@ Thiết kế này thay thế hướng cách ly của
 [2026-09-22-preprocessing-v2-design.md](2026-09-22-preprocessing-v2-design.md),
 vốn đặt v2 thành một package độc lập chạy song song.
 
+Hai phần **không** đến từ v2 nhưng nằm trong phạm vi này vì cùng một mục tiêu
+"xử lý khác nhau theo dữ liệu thay vì một cấu hình cho tất cả": adaptive DAKE ở
+mục 6 và sửa lỗi chính tả ASR ở mục 4b.
+
 ## 2. Bối cảnh
 
 Ba điều đã xác minh trong repo, chi phối toàn bộ thiết kế:
@@ -84,6 +88,58 @@ thành `layer_1/compare_asr.py`, chạy trên CPU trên hai file `whisper.jsonl`
 để chọn giữa PhoWhisper và ChunkFormer. Báo cáo coverage/độ dài/tỉ lệ rỗng; WER
 chỉ xuất khi có ground truth.
 
+## 4b. Layer 1 — sửa lỗi chính tả ASR, không dùng LLM
+
+Registry ở mục 4 mới chỉ cho **đổi** model, không sửa lỗi chính tả. Ba bước dưới
+đây làm theo đúng thứ tự, mỗi bước đo được trước khi sang bước sau.
+
+Quy mô để cân nhắc chi phí: batch1 có **57.846 segment / 853 video**.
+
+### 4b.1 Thêm confidence vào schema (tiền đề)
+
+Schema hiện tại là `{video_id, seg_id, start_ms, end_ms, text}` — không có tín
+hiệu nào để biết segment nào đáng ngờ, nên không cơ chế chấm điểm nào ở 4b.3
+hoạt động được. Thêm trường `confidence`.
+
+Lấy confidence không đối xứng giữa hai backend, cần biết trước khi ước lượng
+công: ChunkFormer là CTC nên `pyctcdecode` trả sẵn điểm beam; PhoWhisper là
+seq2seq nên phải lấy qua `output_scores` / `return_dict_in_generate` của
+`generate()`, không có trong lời gọi `pipeline()` đơn giản hiện nay.
+
+File `whisper.jsonl` cũ không được retro-fit: muốn dùng cổng ở 4b.3 thì phải
+chạy lại ASR để sinh confidence.
+
+### 4b.2 KenLM n-gram rescoring (nền)
+
+`khanhld/chunkformer-ctc-large-vie` là model **CTC**, nên decode được bằng
+`pyctcdecode` với shallow fusion của một n-gram LM tiếng Việt (KenLM). Đây là
+cách chuẩn để sửa lỗi chính tả, ranh giới từ và dấu bằng thống kê corpus, không
+cần LLM.
+
+Chi phí: **không thêm GPU pass nào** — chỉ là đổi bước decode, chạy CPU, cộng
+một file LM.
+
+Giới hạn phải nói rõ: chỉ áp dụng được cho ChunkFormer. PhoWhisper là
+encoder-decoder, không có CTC logits, nên `pyctcdecode` không dùng được cho nó.
+Backend `phowhisper` giữ nguyên đường decode hiện tại.
+
+Config: khối `kenlm: {model_path, alpha, beta}` trong cấu hình ASR, mặc định
+`model_path: null` → decode greedy như hiện nay.
+
+### 4b.3 Đối chứng nhiều model, có cổng chi phí
+
+Chạy cả PhoWhisper lẫn ChunkFormer trên toàn bộ 57.846 segment là gấp đôi GPU
+time ASR trên cụm dùng chung. Nên áp đúng khuôn cổng chi phí của layer_3 (mục
+7.3): model thứ hai **chỉ chạy trên segment đáng ngờ** — confidence dưới ngưỡng
+cấu hình được.
+
+Với segment đã chạy hai model, chọn theo điểm (điểm CTC + điểm LM ở 4b.2) chứ
+không gọi LLM. Đây là dạng rút gọn của ROVER: bỏ phiếu theo từ giữa các hệ
+thống, lấy confidence làm trọng số.
+
+Chỉ làm bước này sau khi 4b.1 và 4b.2 đã chạy và đo được tỉ lệ segment
+confidence thấp thực tế — con số đó quyết định cổng có đáng làm không.
+
 ## 5. Layer 1 — trajectory (folder mới)
 
 `layer_1/trajectory/` là capability hoàn toàn mới, không có sẵn trong layer nào.
@@ -111,13 +167,54 @@ layer_1 đang chạy tốt. Để riêng thì hỏng cũng chỉ hỏng trajecto
 GPL-3.0, nên nếu image hoặc repo được phát hành kèm bài nộp thì cần ghi nhận
 trong `THIRD_PARTY_NOTICES`.
 
-## 6. Layer 2 — không đụng code
+## 6. Layer 2 — adaptive DAKE
 
-Layer 2 đã pluggable sẵn. Việc duy nhất: commit phần `pipeline_h` đang dở dang
-trong working tree của `main` (`cli.py`, `src/extractors/pipeline_h.py`,
-`configs/pipeline_h.yaml`, `src/components/text_prescan.py`,
-`src/components/semantic_filter.py` và test đi kèm). Chưa commit thì trên một
-checkout sạch sẽ không có `pipeline_h`.
+Việc chọn pipeline đã pluggable sẵn, nên phần registry không phải làm gì. Nhưng
+có một chỗ **không** thích nghi theo video: DAKE.
+
+### 6.1 Hiện trạng
+
+`dake.py:104` tính `k = max(1, int(len(frames) * self.candidate_ratio))`.
+`candidate_ratio` là hằng số từ YAML, áp cho mọi shot của mọi video. Hệ quả:
+
+- shot 1000 frame tĩnh (người dẫn ngồi yên), ratio 0,05 → vẫn lấy 50 candidate,
+  đốt BEiT-3 vô ích;
+- shot 40 frame chuyển động dữ dội → chỉ 2 candidate, sót nội dung.
+
+Cơ chế thích nghi *có* tồn tại nhưng nằm **sau** DAKE, trong
+`semantic_filter.py:162-163`: gap decay nới threshold khi gap vượt
+`gap_decay_start_frames` (tối đa 0,05) và force-pick khi vượt `max_gap_frames`.
+Đó là cứu vãn ở hạ nguồn — DAKE không đưa candidate vào thì semantic filter
+không có gì để chọn. DAKE là trần trên của toàn pipeline.
+
+### 6.2 Thiết kế
+
+Thay top-k-theo-ratio bằng ngưỡng thống kê trên chính mảng `aggregated` mà
+`select_with_scores()` đã tính sẵn — không thêm một phép tính nào:
+
+- giữ frame có `aggregated` vượt percentile P của **chính shot đó**;
+- clamp số lượng trong `[min_per_shot, len(frames) * candidate_ratio]`, tức
+  `candidate_ratio` đổi vai từ "tỉ lệ cố định" thành "trần an toàn";
+- vẫn ép giữ frame đầu shot như hiện nay.
+
+Shot tĩnh có phân phối score phẳng nên ít frame vượt ngưỡng; shot động nhiều
+peak nên nhiều frame vượt. Thích nghi theo **từng shot**, mịn hơn theo loại
+video, và không cần gán nhãn loại video.
+
+Repo đã có tiền lệ đúng họ thống kê này: `transition_selector` dùng
+`peak_percentile: 90.0` cùng prominence window cho mục đích khác.
+
+Config: thêm khối `dake.adaptive: {enabled: false, percentile, min_per_shot}`.
+Mặc định tắt → `pipeline_g`/`pipeline_h` chạy y hệt hiện nay; bật lên mới là
+hành vi mới. Không đụng `DAKE_THREADS` (mặc định 2, đang giới hạn cho máy dùng
+chung).
+
+### 6.3 Việc còn lại của layer 2
+
+Commit phần `pipeline_h` đang dở dang trong working tree của `main`
+(`cli.py`, `src/extractors/pipeline_h.py`, `configs/pipeline_h.yaml`,
+`src/components/text_prescan.py`, `src/components/semantic_filter.py` và test đi
+kèm). Chưa commit thì trên một checkout sạch sẽ không có `pipeline_h`.
 
 Bỏ `preprocessing_v2/keyframes.py` — nó chỉ là wrapper gọi
 `layer_2/Keyframe_Extracting/run.sh`, không còn tác dụng khi không có orchestrator.
@@ -253,15 +350,21 @@ Test viết trước khi implement từng phần. Test CPU không cần GPU/mạ
 - bù chuyển động camera trên pan tổng hợp;
 - chuyển đổi bản ghi OTVision mà không import OTVision;
 - đồng thuận VietOCR↔PARSeq, thứ tự ưu tiên các luật trọng tài, và cờ
-  `unresolved` được đặt đúng.
+  `unresolved` được đặt đúng;
+- adaptive DAKE: shot có score phẳng cho ít candidate hơn shot nhiều peak, clamp
+  `min_per_shot` và trần `candidate_ratio` đều có hiệu lực, và `enabled: false`
+  cho ra đúng tập candidate như thuật toán top-k hiện nay;
+- ASR ghi trường `confidence`, và `kenlm.model_path: null` cho ra đúng kết quả
+  decode greedy như hiện nay.
 
 Nghiệm thu:
 
 1. Output v1 đang tracked không có diff khi chạy với backend mặc định.
 2. Test CPU pass.
 3. `layer_3` với `parseq.enabled: false` cho kết quả giống hệt hiện nay.
-4. Một lần chạy GPU smoke trên 1 video cho mỗi phần mới (ChunkFormer, trajectory).
-5. `compare_asr.py` chạy được trên hai file `whisper.jsonl`.
+4. `layer_2` với `dake.adaptive.enabled: false` cho keyframe giống hệt hiện nay.
+5. Một lần chạy GPU smoke trên 1 video cho mỗi phần mới (ChunkFormer, trajectory).
+6. `compare_asr.py` chạy được trên hai file `whisper.jsonl`.
 
 ## 12. Rủi ro còn mở
 
@@ -271,4 +374,14 @@ Nghiệm thu:
   như hiện nay.
 - **Tỉ lệ bất đồng VietOCR↔PARSeq chưa đo được.** Khi có checkpoint, đo trên mẫu
   ~1.000 box trước khi chạy toàn bộ batch1, để biết khối lượng VLM thực tế.
+- **Chưa có KenLM tiếng Việt trong repo** (mục 4b.2). Phải train từ corpus tin
+  tức hoặc lấy bản có sẵn; `alpha`/`beta` cần chỉnh trên tập nhỏ có ground truth
+  trước khi tin.
+- **Confidence của PhoWhisper không lấy được từ `pipeline()`** (mục 4b.1), phải
+  đổi sang `generate()` với `return_dict_in_generate`. Đây là thay đổi trong
+  đường chạy mặc định đang ổn định, nên làm riêng và đối chiếu output trước/sau.
+- **Percentile của adaptive DAKE chưa có giá trị đã đo** (mục 6.2). Chọn P bằng
+  cách chạy trên vài shot tĩnh và vài shot động rồi đối chiếu số candidate, chứ
+  không lấy 90,0 của `transition_selector` làm mặc định vì đó là thống kê cho
+  mục đích khác.
 - **Phân kỳ với `AIC2026_Artiz_System`** (mục 2.3) sẽ rộng thêm sau thay đổi này.
