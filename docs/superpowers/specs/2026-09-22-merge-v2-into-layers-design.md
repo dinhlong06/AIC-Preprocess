@@ -7,9 +7,15 @@
 ## 1. Mục tiêu
 
 Giải thể package `preprocessing_v2/` và đưa phần mới của nó vào đúng layer tương
-ứng, theo hướng **bổ sung lựa chọn model** chứ không viết lại pipeline. Backend
-mặc định của mỗi layer giữ nguyên như hiện tại, nên mọi script, output và
-benchmark cũ không đổi.
+ứng, theo hướng bổ sung chứ không viết lại pipeline.
+
+Layer 2 và layer 3 giữ nguyên hành vi mặc định: tính năng mới nằm sau cờ config
+mặc định tắt, nên script, output và benchmark cũ không đổi.
+
+Layer 1 là ngoại lệ có chủ ý: ASR **thay hẳn** PhoWhisper bằng ChunkFormer +
+KenLM (mục 4), nên output ASR sẽ khác và phải chạy lại. Đây là thay đổi duy nhất
+trong spec này phá vỡ tính tương thích ngược, và mục 4.5 quy định trình tự đo
+trước khi bỏ đường cũ.
 
 Thiết kế này thay thế hướng cách ly của
 [2026-09-22-preprocessing-v2-design.md](2026-09-22-preprocessing-v2-design.md),
@@ -17,7 +23,7 @@ vốn đặt v2 thành một package độc lập chạy song song.
 
 Hai phần **không** đến từ v2 nhưng nằm trong phạm vi này vì cùng một mục tiêu
 "xử lý khác nhau theo dữ liệu thay vì một cấu hình cho tất cả": adaptive DAKE ở
-mục 6 và sửa lỗi chính tả ASR ở mục 4b.
+mục 6 và sửa lỗi chính tả ASR bằng KenLM ở mục 4.
 
 ## 2. Bối cảnh
 
@@ -41,104 +47,91 @@ Ba điều đã xác minh trong repo, chi phối toàn bộ thiết kế:
 
 ## 3. Nguyên tắc chung
 
-Mỗi layer có một registry nhỏ `tên backend → (hàm dựng, model mặc định)`. Backend
-mặc định là backend hiện tại. Không có lớp orchestrator nào bắc ngang ba layer:
-mỗi layer giữ Docker image, `run.sh` và cơ chế resume riêng như hiện nay, và
-"chọn stage để chạy" chính là chọn layer để chạy.
+Không có lớp orchestrator nào bắc ngang ba layer: mỗi layer giữ Docker image,
+`run.sh` và cơ chế resume riêng như hiện nay, và "chọn stage để chạy" chính là
+chọn layer để chạy.
 
-## 4. Layer 1 — ASR đa backend
+Nơi nào thật sự có nhiều lựa chọn cùng tồn tại thì dùng registry như
+`_PIPELINE_BUILDERS` của layer 2 đang làm. Nơi nào chỉ có một đường chạy — ASR
+sau mục 4 — thì gọi thẳng, không dựng registry cho một phần tử.
 
-Chỗ nối nằm ở đúng một điểm: `gpu_shot_and_asr.py:279` dựng
-`pipeline("automatic-speech-recognition")`. Mọi thứ còn lại trong `run_asr` đều
-độc lập với model: tách audio bằng ffmpeg, Silero VAD, claims/resume, ghi atomic,
-OOM backoff batch→1, tmp trên `/dev/shm`. Phần đó đã chạy qua 605 video và
-**không được đụng vào**.
+## 4. Layer 1 — ASR chuyển sang ChunkFormer + KenLM
 
-**File mới `layer_1/asr_backends.py`:**
+ASR đi về **một đường duy nhất**: ChunkFormer decode bằng `pyctcdecode` với
+shallow fusion của KenLM tiếng Việt. PhoWhisper bị bỏ. Không có registry backend
+— một backend thì registry là lớp trừu tượng không kiếm được chỗ đứng.
 
-```python
-ASR_BACKENDS = {
-    "phowhisper":  (build_phowhisper,  "vinai/PhoWhisper-large"),
-    "chunkformer": (build_chunkformer, "khanhld/chunkformer-ctc-large-vie"),
-}
-```
-
-Hợp đồng: `build(model_name, device, dtype)` trả về một callable
-`(chunks, batch_size) -> list[str]`, trong đó `chunks` đúng là cấu trúc
-`run_asr` đã dựng sẵn ở dòng 342-350 (`[{"array": np.ndarray, "sampling_rate": 16000}, ...]`).
-
-- `phowhisper`: giữ nguyên hành vi hiện tại, gồm cả gọi theo batch.
-- `chunkformer`: lặp từng segment và gọi `endless_decode()`, vì API của nó nhận
-  đường dẫn file chứ không nhận mảng. Logic lấy từ
-  `preprocessing_v2/asr.py:25-58`, nhưng **không** mang `PhoWhisperRecognizer`
-  của v2 sang: bản đó gọi từng segment một, làm mất batching và OOM backoff mà
-  bản layer_1 đang có.
-
-**Sửa trong `gpu_shot_and_asr.py` (~5 dòng):** thay lời gọi `pipeline(...)` bằng
-tra cứu registry; thêm `--asr_backend` (mặc định `phowhisper`); để `--model_name`
-mặc định theo backend đã chọn.
-
-**Rủi ro cần kiểm chứng sớm:** đoạn ChunkFormer của v2 chưa từng chạy, kể cả
-dòng `from chunkformer import ChunkFormerModel` cũng chưa được xác nhận là đúng
-API của `khanhld/chunkformer-ctc-large-vie`. Đây là chỗ khả năng sai cao nhất
-trong toàn bộ kế hoạch, nên phải thử trước khi làm phần còn lại.
-
-**So sánh backend:** rút gọn phần so sánh shot/ASR của `preprocessing_v2/compare.py`
-thành `layer_1/compare_asr.py`, chạy trên CPU trên hai file `whisper.jsonl` đã có
-để chọn giữa PhoWhisper và ChunkFormer. Báo cáo coverage/độ dài/tỉ lệ rỗng; WER
-chỉ xuất khi có ground truth.
-
-## 4b. Layer 1 — sửa lỗi chính tả ASR, không dùng LLM
-
-Registry ở mục 4 mới chỉ cho **đổi** model, không sửa lỗi chính tả. Ba bước dưới
-đây làm theo đúng thứ tự, mỗi bước đo được trước khi sang bước sau.
-
-Quy mô để cân nhắc chi phí: batch1 có **57.846 segment / 853 video**.
-
-### 4b.1 Thêm confidence vào schema (tiền đề)
-
-Schema hiện tại là `{video_id, seg_id, start_ms, end_ms, text}` — không có tín
-hiệu nào để biết segment nào đáng ngờ, nên không cơ chế chấm điểm nào ở 4b.3
-hoạt động được. Thêm trường `confidence`.
-
-Lấy confidence không đối xứng giữa hai backend, cần biết trước khi ước lượng
-công: ChunkFormer là CTC nên `pyctcdecode` trả sẵn điểm beam; PhoWhisper là
-seq2seq nên phải lấy qua `output_scores` / `return_dict_in_generate` của
-`generate()`, không có trong lời gọi `pipeline()` đơn giản hiện nay.
-
-File `whisper.jsonl` cũ không được retro-fit: muốn dùng cổng ở 4b.3 thì phải
-chạy lại ASR để sinh confidence.
-
-### 4b.2 KenLM n-gram rescoring (nền)
+### 4.1 Vì sao ChunkFormer + KenLM
 
 `khanhld/chunkformer-ctc-large-vie` là model **CTC**, nên decode được bằng
-`pyctcdecode` với shallow fusion của một n-gram LM tiếng Việt (KenLM). Đây là
-cách chuẩn để sửa lỗi chính tả, ranh giới từ và dấu bằng thống kê corpus, không
-cần LLM.
+`pyctcdecode` + KenLM. Đó là cách chuẩn để sửa lỗi chính tả, ranh giới từ và dấu
+bằng thống kê corpus, không cần LLM, và **không thêm GPU pass nào** — chỉ đổi
+bước decode, phần LM chạy CPU.
 
-Chi phí: **không thêm GPU pass nào** — chỉ là đổi bước decode, chạy CPU, cộng
-một file LM.
+PhoWhisper là encoder-decoder, không có CTC logits, nên không dùng được
+`pyctcdecode`. Đây là lý do kỹ thuật khiến không thể giữ cả hai mà vẫn hưởng
+KenLM: cơ chế sửa lỗi chỉ tồn tại trên nhánh CTC.
 
-Giới hạn phải nói rõ: chỉ áp dụng được cho ChunkFormer. PhoWhisper là
-encoder-decoder, không có CTC logits, nên `pyctcdecode` không dùng được cho nó.
-Backend `phowhisper` giữ nguyên đường decode hiện tại.
+### 4.2 Thay đổi trong `gpu_shot_and_asr.py`
 
-Config: khối `kenlm: {model_path, alpha, beta}` trong cấu hình ASR, mặc định
-`model_path: null` → decode greedy như hiện nay.
+Giữ nguyên, **không đụng vào**: tách audio bằng ffmpeg, Silero VAD, claims/resume,
+ghi atomic, tmp trên `/dev/shm`. Phần đó đã chạy qua 605 video.
 
-### 4b.3 Đối chứng nhiều model, có cổng chi phí
+Thay đổi, nhiều hơn một chỗ nối — cần lường trước:
 
-Chạy cả PhoWhisper lẫn ChunkFormer trên toàn bộ 57.846 segment là gấp đôi GPU
-time ASR trên cụm dùng chung. Nên áp đúng khuôn cổng chi phí của layer_3 (mục
-7.3): model thứ hai **chỉ chạy trên segment đáng ngờ** — confidence dưới ngưỡng
-cấu hình được.
+- dòng 279: thay `pipeline("automatic-speech-recognition")` bằng khởi tạo
+  ChunkFormer + `pyctcdecode` decoder;
+- dòng 342-350: `chunks` hiện dựng dạng `{"array", "sampling_rate"}` cho HF
+  pipeline; ChunkFormer nhận đường dẫn file nên chuyển sang ghi WAV tạm từng
+  segment (logic ở `preprocessing_v2/asr.py:39-58`);
+- dòng 354-366: vòng lặp batch với OOM backoff batch→1 **thành mã chết**, vì
+  ChunkFormer tự gom theo `total_batch_duration` chứ không nhận `batch_size`.
+  Gỡ bỏ cùng cờ `--asr_batch_size`.
 
-Với segment đã chạy hai model, chọn theo điểm (điểm CTC + điểm LM ở 4b.2) chứ
-không gọi LLM. Đây là dạng rút gọn của ROVER: bỏ phiếu theo từ giữa các hệ
-thống, lấy confidence làm trọng số.
+Nói cách khác đây không phải sửa 5 dòng như bản trước của spec này ước lượng:
+mất luôn cơ chế OOM backoff đã được viết riêng cho GPU dùng chung, nên phải xác
+nhận ChunkFormer có hành vi VRAM chấp nhận được trước khi tin.
 
-Chỉ làm bước này sau khi 4b.1 và 4b.2 đã chạy và đo được tỉ lệ segment
-confidence thấp thực tế — con số đó quyết định cổng có đáng làm không.
+### 4.3 Schema và confidence
+
+Thêm trường `confidence` vào mỗi dòng `whisper.jsonl`:
+`{video_id, seg_id, start_ms, end_ms, text, confidence}`.
+
+`pyctcdecode` trả sẵn điểm beam nên trường này gần như miễn phí. Nó cần thiết vì
+khi chỉ còn một model, **không còn ý kiến thứ hai nào** để phát hiện segment
+hỏng — điểm của chính nó là tín hiệu chất lượng duy nhất còn lại.
+
+File `whisper.jsonl` cũ không được retro-fit.
+
+### 4.4 Config
+
+Khối `kenlm: {model_path, alpha, beta}`. `model_path: null` → decode greedy,
+tức ChunkFormer trần không có sửa lỗi. Đây là chế độ suy giảm để chạy được khi
+chưa có file LM, không phải mặc định mong muốn.
+
+### 4.5 Trình tự bỏ PhoWhisper
+
+PhoWhisper là đường đang chạy production, đã sinh 57.846 segment / 853 video.
+ChunkFormer là code chưa từng chạy một lần nào (kể cả dòng
+`from chunkformer import ChunkFormerModel` cũng chưa được xác nhận đúng API), và
+KenLM tiếng Việt thì repo chưa có. Bỏ đường cũ trước khi đường mới được đo là
+đánh đổi không lấy lại được.
+
+Nên trình tự là:
+
+1. dựng đường ChunkFormer + KenLM song song, chạy trên một mẫu nhỏ;
+2. `layer_1/compare_asr.py` (rút gọn từ `preprocessing_v2/compare.py`) đối chiếu
+   hai file `whisper.jsonl` trên cùng mẫu đó — coverage, độ dài, tỉ lệ rỗng; WER
+   chỉ xuất khi có ground truth;
+3. đạt kết quả thì **xóa hẳn** nhánh PhoWhisper khỏi `gpu_shot_and_asr.py`,
+   `requirements.txt` và `run_layer1.sh`, rồi chạy lại toàn bộ 853 video.
+
+Bước 3 là xóa thật, không để lại cờ hay nhánh chết. Trước bước 3, sự tồn tại của
+PhoWhisper là để đo, không phải để phòng hờ.
+
+Chi phí cần biết trước: sau khi đổi, toàn bộ `whisper.jsonl` hiện có trở thành
+output của model cũ, nên phải chạy lại ASR cho cả 853 video, và
+`layer_2/shot_transcript` cùng index BM25 hạ nguồn phải build lại theo.
 
 ## 5. Layer 1 — trajectory (folder mới)
 
@@ -310,8 +303,10 @@ cùng module mà chúng kiểm thử.
 
 ## 9. Script và chi phí build lại image
 
-`run_layer1.sh` đã có `"$@"` passthrough nên cờ mới dùng được ngay; chỉ thêm
-biến `ASR_BACKEND` ở đầu file cho đồng bộ style với `SHOT_THRESHOLD`/`VAD_*`.
+`run_layer1.sh` đã có `"$@"` passthrough nên cờ mới dùng được ngay. Bỏ
+`--asr_batch_size` khỏi script cùng lúc với việc gỡ vòng lặp batch ở mục 4.2;
+thêm biến `KENLM_PATH` ở đầu file cho đồng bộ style với `SHOT_THRESHOLD`/`VAD_*`,
+và mount file LM vào container như một volume read-only.
 
 `run_layer1.sh:45` luôn gọi `docker build` mỗi lần chạy, nhưng nhờ layer cache
 chi phí phụ thuộc vào file bị sửa:
@@ -319,7 +314,7 @@ chi phí phụ thuộc vào file bị sửa:
 | Sửa gì | Layer rebuild | Thời gian |
 |---|---|---|
 | `gpu_shot_and_asr.py` (COPY, layer cuối) | 1 layer | vài giây |
-| `requirements.txt` (thêm chunkformer) | từ `Dockerfile:35` xuống | vài phút |
+| `requirements.txt` (thêm chunkformer, pyctcdecode, kenlm; bỏ transformers nếu không còn ai dùng) | từ `Dockerfile:35` xuống | vài phút |
 | base image / torch (`Dockerfile:3,32`) | ~5,5 GB | rất lâu |
 
 Thêm package vào `requirements.txt` không phải dựng lại toàn bộ image: base
@@ -333,7 +328,8 @@ thư mục cache cố định của host vào container và set `HF_HOME`.
 
 | Model | Nguồn | Nơi lưu |
 |---|---|---|
-| ChunkFormer, PhoWhisper | tự tải từ HF Hub | `layer_1/cache` đã mount sẵn vào `/root/.cache` |
+| ChunkFormer | tự tải từ HF Hub | `layer_1/cache` đã mount sẵn vào `/root/.cache` |
+| KenLM tiếng Việt | **chưa có, phải train hoặc tải** | ngoài git, trỏ bằng `kenlm.model_path` |
 | YOLO `yolov8x-oiv7.pt` | ultralytics tự tải | cache riêng của `layer_1/trajectory/`, mount tương tự |
 | PARSeq tiếng Việt | **chưa có, phải tự cung cấp** | ngoài git, trỏ bằng `parseq.model_path` trong `config.yaml` |
 | Qwen3-VL-4B | đã có sẵn | `layer_3/OCR_v2/models/qwen3-vl-4b-vi-ocr` |
@@ -342,9 +338,10 @@ thư mục cache cố định của host vào container và set `HF_HOME`.
 
 Test viết trước khi implement từng phần. Test CPU không cần GPU/mạng:
 
-- registry ASR: chọn đúng backend, `--model_name` mặc định theo backend, backend
-  lạ báo lỗi rõ ràng;
-- `chunks` mà backend nhận đúng cấu trúc `run_asr` đang dựng;
+- ASR ghi đúng schema có `confidence`, và timestamp segment vẫn lấy từ VAD chứ
+  không từ model (đây là bất biến dễ vỡ nhất khi đổi decoder);
+- `kenlm.model_path: null` chạy được ở chế độ greedy và ghi rõ trong log rằng
+  đang chạy không có LM;
 - định tuyến prefix trajectory và `--trajectory-all`;
 - track tổng hợp: đi thẳng, rẽ trái, rẽ phải, tăng tốc, giảm tốc, chất lượng kém;
 - bù chuyển động camera trên pan tổng hợp;
@@ -353,33 +350,42 @@ Test viết trước khi implement từng phần. Test CPU không cần GPU/mạ
   `unresolved` được đặt đúng;
 - adaptive DAKE: shot có score phẳng cho ít candidate hơn shot nhiều peak, clamp
   `min_per_shot` và trần `candidate_ratio` đều có hiệu lực, và `enabled: false`
-  cho ra đúng tập candidate như thuật toán top-k hiện nay;
-- ASR ghi trường `confidence`, và `kenlm.model_path: null` cho ra đúng kết quả
-  decode greedy như hiện nay.
+  cho ra đúng tập candidate như thuật toán top-k hiện nay.
 
 Nghiệm thu:
 
-1. Output v1 đang tracked không có diff khi chạy với backend mặc định.
-2. Test CPU pass.
-3. `layer_3` với `parseq.enabled: false` cho kết quả giống hệt hiện nay.
-4. `layer_2` với `dake.adaptive.enabled: false` cho keyframe giống hệt hiện nay.
-5. Một lần chạy GPU smoke trên 1 video cho mỗi phần mới (ChunkFormer, trajectory).
-6. `compare_asr.py` chạy được trên hai file `whisper.jsonl`.
+1. Test CPU pass.
+2. `layer_3` với `parseq.enabled: false` cho kết quả giống hệt hiện nay.
+3. `layer_2` với `dake.adaptive.enabled: false` cho keyframe giống hệt hiện nay.
+4. Output shot detection không có diff — đổi ASR không được đụng nhánh TransNetV2.
+5. Một lần chạy GPU smoke trên 1 video cho ChunkFormer + KenLM và cho trajectory.
+6. `compare_asr.py` cho ra báo cáo đối chiếu PhoWhisper↔ChunkFormer trên mẫu
+   đã chọn, và kết quả đó được review **trước** khi xóa nhánh PhoWhisper.
+
+ASR không có tiêu chí "không diff": đổi model thì output đổi theo định nghĩa.
+Thay vào đó tiêu chí là số 6 — bằng chứng đo được, không phải diff trống.
 
 ## 12. Rủi ro còn mở
 
-- **ChunkFormer chưa kiểm chứng** (mục 4). Thử trước tiên.
+- **Toàn bộ ASR dồn vào một đường chưa kiểm chứng** (mục 4). ChunkFormer chưa
+  chạy lần nào và KenLM thì chưa có, trong khi PhoWhisper đang chạy được. Đây là
+  rủi ro tập trung lớn nhất của spec; mục 4.5 giữ nó lại bằng trình tự đo trước,
+  xóa sau. Thử ChunkFormer trước mọi việc khác.
+- **Mất OOM backoff khi bỏ đường PhoWhisper** (mục 4.2). Vòng lặp batch→1 được
+  viết riêng cho GPU dùng chung có co-tenant; ChunkFormer tự gom theo
+  `total_batch_duration` nên cơ chế đó không còn. Phải quan sát VRAM thực tế
+  trong lần smoke đầu tiên.
 - **Không có checkpoint PARSeq tiếng Việt.** Nhánh đồng thuận ở mục 7.2 chỉ chạy
   được khi có checkpoint; trước đó `parseq.enabled: false` và luồng giữ nguyên
   như hiện nay.
 - **Tỉ lệ bất đồng VietOCR↔PARSeq chưa đo được.** Khi có checkpoint, đo trên mẫu
   ~1.000 box trước khi chạy toàn bộ batch1, để biết khối lượng VLM thực tế.
-- **Chưa có KenLM tiếng Việt trong repo** (mục 4b.2). Phải train từ corpus tin
+- **Chưa có KenLM tiếng Việt trong repo** (mục 4.4). Phải train từ corpus tin
   tức hoặc lấy bản có sẵn; `alpha`/`beta` cần chỉnh trên tập nhỏ có ground truth
-  trước khi tin.
-- **Confidence của PhoWhisper không lấy được từ `pipeline()`** (mục 4b.1), phải
-  đổi sang `generate()` với `return_dict_in_generate`. Đây là thay đổi trong
-  đường chạy mặc định đang ổn định, nên làm riêng và đối chiếu output trước/sau.
+  trước khi tin. Đây là phụ thuộc chặn: không có nó thì phần sửa lỗi chính tả —
+  lý do chính để đổi sang ChunkFormer — chưa hoạt động.
+- **Chi phí chạy lại toàn bộ ASR** (mục 4.5): 853 video, kéo theo build lại
+  `layer_2/shot_transcript` và index BM25 hạ nguồn.
 - **Percentile của adaptive DAKE chưa có giá trị đã đo** (mục 6.2). Chọn P bằng
   cách chạy trên vài shot tĩnh và vài shot động rồi đối chiếu số candidate, chứ
   không lấy 90,0 của `transition_selector` làm mặc định vì đó là thống kê cho
