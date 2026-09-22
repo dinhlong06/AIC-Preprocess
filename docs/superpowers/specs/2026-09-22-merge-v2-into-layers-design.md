@@ -334,7 +334,100 @@ thư mục cache cố định của host vào container và set `HF_HOME`.
 | PARSeq tiếng Việt | **chưa có, phải tự cung cấp** | ngoài git, trỏ bằng `parseq.model_path` trong `config.yaml` |
 | Qwen3-VL-4B | đã có sẵn | `layer_3/OCR_v2/models/qwen3-vl-4b-vi-ocr` |
 
-## 11. Kiểm thử và nghiệm thu
+## 11. Nhất quán toàn pipeline: schema, script, Docker, và hạ nguồn
+
+Spec này sửa cả ba layer của preprocessing, nên phần dưới ghi lại **chuỗi tiêu
+thụ đã lần theo code**, để mọi thay đổi được kiểm tra tới tận retrieval chứ
+không dừng ở ranh giới layer.
+
+### 11.1 Chuỗi tiêu thụ ASR
+
+```text
+layer_1/whisper.jsonl   {video_id, seg_id, start_ms, end_ms, text}
+  ├─ layer_2/shot_transcript/cpu_map_transcript.py   đọc video_id, start_ms, end_ms, text
+  │    └─ shot_transcripts.jsonl   {video_id, shot_id, text}
+  │         └─ layer_5/indexdb/ingest.py:83-84 → Mongo shots.transcript
+  │              └─ elastic_indexer.py → Elasticsearch (BM25)
+  └─ layer_5/indexdb/ingest.py:82 đọc TRỰC TIẾP → upsert_seg(rec)
+       └─ Mongo transcript_segments
+```
+
+**Thêm `confidence` là thay đổi additive an toàn.** `cpu_map_transcript.py` chỉ
+đọc đúng bốn trường và bỏ qua trường lạ; `ingest.py:110` gọi `upsert_seg(rec)`
+truyền nguyên bản ghi nên trường mới chảy thẳng vào Mongo mà không phải sửa gì.
+`shot_transcripts.jsonl` giữ nguyên schema `{video_id, shot_id, text}` — không
+lan `confidence` xuống đó vì chưa có ai tiêu thụ.
+
+**Bất biến dễ vỡ nhất khi đổi decoder:** `start_ms`/`end_ms` phải tiếp tục đến từ
+**Silero VAD**, không phải từ model. `cpu_map_transcript.py:47-50` join segment
+với shot bằng chồng lấn thời gian; timestamp lệch sẽ hỏng toàn bộ ánh xạ
+shot↔transcript, và lỗi đó **không lộ ra ở layer_1** mà chỉ hiện ra dưới dạng
+kết quả tìm kiếm sai.
+
+### 11.2 OCR — chỗ dễ đứt nhất giữa layer_3 và retrieval
+
+`ingest.py:85-86` đọc `layer_3/OCR/output/output_vietocr.json` và
+`output_hybrid.json`. Nó **không đọc** `output_vietocr_merged.json`, cũng không
+đọc output của bước VLM correction. Nghĩa là nếu mục 7 sinh ra file kết quả mới
+mà không cập nhật ingest, toàn bộ cải thiện PARSeq + trọng tài + Qwen-VL **không
+bao giờ tới retrieval**.
+
+`ingest_batch1.py` khác: nó nhận đường dẫn qua CLI (`args.ocr`, `args.ocr_api`),
+nên chỉ cần truyền đúng file — nhưng phải nhớ truyền.
+
+`_load_ocr` (`ingest.py:36`) đòi schema `{frame_id, texts: [{text, confidence}]}`
+và lọc `confidence >= MIN_CONF`. Output mới của mục 7 **phải giữ nguyên hình dạng
+này**, kể cả khi thêm cờ `unresolved`.
+
+### 11.3 Keyframe — adaptive DAKE kéo theo cả dây chuyền
+
+`ingest.py:77` lấy keyframe từ `layer_2/Keyframe_Extracting/benchmark/<--pipeline>`
+(mặc định `pipeline_c`). Bật adaptive DAKE ở mục 6 đổi tập keyframe, nên kéo theo:
+
+1. chạy lại SigLIP embedding cho tập frame mới (`recap_siglip/artifacts/siglip`);
+2. chạy lại recap caption;
+3. `--purge` rồi ingest lại, vì frame cũ vẫn còn trong Mongo và Elasticsearch.
+
+Đây là dây chuyền dài nhất trong spec. Vì vậy `dake.adaptive.enabled` mặc định
+tắt, và bật nó là một quyết định chạy lại gần như toàn bộ hạ nguồn, không phải
+một tinh chỉnh nhỏ.
+
+### 11.4 Script phải sửa
+
+Cả bốn script của layer_1 đều truyền cờ ASR: `run_layer1.sh`,
+`run_layer1_batch1.sh`, `run_shards.sh`, `run_shards_batch1.sh`. Hai script
+shard bọc `run_layer1.sh` qua biến môi trường (`OUTPUT_DIR`, `GPU_ID`,
+`CLAIMS_DIR`) và cờ `--skip_asr`/`--skip_shots`, nên sửa `run_layer1.sh` là đủ
+cho phần chung, nhưng vẫn phải rà cả bốn để gỡ `--asr_batch_size` (mục 4.2) và
+thêm `KENLM_PATH`.
+
+Script mới: `layer_1/trajectory/run_trajectory.sh`.
+
+Không đụng: `layer_2/Keyframe_Extracting/run.sh` và các script layer_3, vì thay
+đổi ở hai layer đó nằm sau cờ config mặc định tắt.
+
+### 11.5 Docker
+
+- `layer_1/Dockerfile`: thêm `chunkformer`, `pyctcdecode`, `kenlm` vào
+  `requirements.txt`; gỡ `transformers` nếu sau mục 4.5 không còn ai dùng; thêm
+  volume mount cho file KenLM.
+- `layer_1/trajectory/Dockerfile`: mới, gồm ultralytics và OTVision (mục 5).
+- `layer_3/OCR/Dockerfile`: thêm PARSeq khi bật mục 7.
+- Không đụng base image và dòng pin `torch==2.1.2+cu118`.
+
+### 11.6 Nhân đôi với AIC2026_Artiz_System
+
+Mọi file nêu trong mục 11 đều tồn tại hai bản:
+`layer_5/indexdb/{ingest,elastic_indexer}.py` và
+`AIC2026_Artiz_System/services/indexing/indexdb/` cùng tên;
+`layer_2/shot_transcript/cpu_map_transcript.py` và
+`AIC2026_Artiz_System/offline/02_keyframe_extraction/shot_transcript/` cùng tên.
+
+Spec này chỉ sửa bản `layer_*`. Mỗi thay đổi schema hoặc đường dẫn ở mục 11.1 và
+11.2 sẽ làm hai bản lệch nhau thêm, nên phải ghi lại để đồng bộ một lượt sau,
+thay vì phát hiện lúc chạy.
+
+## 12. Kiểm thử và nghiệm thu
 
 Test viết trước khi implement từng phần. Test CPU không cần GPU/mạng:
 
@@ -361,11 +454,16 @@ Nghiệm thu:
 5. Một lần chạy GPU smoke trên 1 video cho ChunkFormer + KenLM và cho trajectory.
 6. `compare_asr.py` cho ra báo cáo đối chiếu PhoWhisper↔ChunkFormer trên mẫu
    đã chọn, và kết quả đó được review **trước** khi xóa nhánh PhoWhisper.
+7. **Nghiệm thu tới retrieval, không dừng ở ranh giới layer**: sau khi chạy lại
+   một video, `ingest` nạp được không lỗi, và truy vấn văn bản trong retrieval
+   trả về đúng video đó qua cả nhánh ASR lẫn nhánh OCR. Đây là tiêu chí duy nhất
+   chứng minh output mới thật sự dùng được, vì các mục 11.1 và 11.2 cho thấy một
+   thay đổi có thể hợp lệ ở layer_1/layer_3 mà vẫn không bao giờ tới Elasticsearch.
 
 ASR không có tiêu chí "không diff": đổi model thì output đổi theo định nghĩa.
 Thay vào đó tiêu chí là số 6 — bằng chứng đo được, không phải diff trống.
 
-## 12. Rủi ro còn mở
+## 13. Rủi ro còn mở
 
 - **Toàn bộ ASR dồn vào một đường chưa kiểm chứng** (mục 4). ChunkFormer chưa
   chạy lần nào và KenLM thì chưa có, trong khi PhoWhisper đang chạy được. Đây là
@@ -390,4 +488,9 @@ Thay vào đó tiêu chí là số 6 — bằng chứng đo được, không ph�
   cách chạy trên vài shot tĩnh và vài shot động rồi đối chiếu số candidate, chứ
   không lấy 90,0 của `transition_selector` làm mặc định vì đó là thống kê cho
   mục đích khác.
-- **Phân kỳ với `AIC2026_Artiz_System`** (mục 2.3) sẽ rộng thêm sau thay đổi này.
+- **`ingest.py` không đọc output OCR đã merge** (mục 11.2). Rủi ro âm thầm nhất
+  trong spec: layer_3 chạy đúng, test pass, mà retrieval vẫn dùng text cũ. Tiêu
+  chí nghiệm thu số 7 tồn tại để bắt đúng trường hợp này.
+- **Phân kỳ với `AIC2026_Artiz_System`** (mục 2.3, 11.6) sẽ rộng thêm sau thay
+  đổi này, vì bản sao của `ingest.py` và `cpu_map_transcript.py` không được sửa
+  trong spec này.
