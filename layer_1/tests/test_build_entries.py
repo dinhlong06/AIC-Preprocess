@@ -17,6 +17,7 @@ def test_schema_and_seg_id_format():
         "start_ms": 0,
         "end_ms": 1000,
         "text": "a",
+        "confidence": 0.0,
     }
 
 
@@ -31,3 +32,14 @@ def test_empty_text_skipped_but_still_consumes_index():
 def test_text_is_stripped():
     entries = _build_entries("V", [{"start": 0.0, "end": 1.0}], [{"text": "  a  "}])
     assert entries[0]["text"] == "a"
+
+
+def test_confidence_is_written_when_present():
+    entries = _build_entries("V", [{"start": 0.0, "end": 1.0}],
+                             [{"text": "a", "confidence": -1.25}])
+    assert entries[0]["confidence"] == -1.25
+
+
+def test_confidence_defaults_to_zero_when_absent():
+    entries = _build_entries("V", [{"start": 0.0, "end": 1.0}], [{"text": "a"}])
+    assert entries[0]["confidence"] == 0.0

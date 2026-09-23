@@ -4,9 +4,12 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
+import wave
 from typing import List, Optional
 
 import cv2
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -251,8 +254,59 @@ def _build_entries(video_id, speech_segments, results):
             "start_ms": int(round(seg["start"] * 1000)),
             "end_ms": int(round(seg["end"] * 1000)),
             "text": text,
+            "confidence": float(result.get("confidence", 0.0)),
         })
     return entries
+
+
+def _load_chunkformer_model(model_name):
+    from chunkformer import ChunkFormerModel
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    model = ChunkFormerModel.from_pretrained(model_name).to(device)
+    model.eval()
+    return model
+
+
+def _chunkformer_text(result):
+    if isinstance(result, str):
+        return result.strip()
+    if isinstance(result, dict):
+        return str(result.get("text", "")).strip()
+    return " ".join(_chunkformer_text(item) for item in result).strip()
+
+
+def _build_chunkformer(model_name, kenlm_path):
+    model = _load_chunkformer_model(model_name)
+    print(f"Model {model_name} đã load.")
+
+    def recognize(chunks, batch_size):
+        results = []
+        for chunk in chunks:
+            # ChunkFormer nhận đường dẫn file, không nhận mảng -> WAV tạm trên
+            # /dev/shm (RAM) vì out_dir nằm trên NFS.
+            handle = tempfile.NamedTemporaryFile(
+                suffix=".wav", delete=False,
+                dir="/dev/shm" if os.path.isdir("/dev/shm") else None)
+            handle.close()
+            try:
+                pcm = (np.clip(chunk["array"], -1.0, 1.0) * 32767.0).astype("<i2")
+                with wave.open(handle.name, "wb") as wav_out:
+                    wav_out.setnchannels(1)
+                    wav_out.setsampwidth(2)
+                    wav_out.setframerate(chunk["sampling_rate"])
+                    wav_out.writeframes(pcm.tobytes())
+                with torch.inference_mode():
+                    raw = model.endless_decode(
+                        audio_path=handle.name, chunk_size=64,
+                        left_context_size=128, right_context_size=128,
+                        total_batch_duration=1800, return_timestamps=False)
+                results.append({"text": _chunkformer_text(raw), "confidence": 0.0})
+            finally:
+                if os.path.exists(handle.name):
+                    os.remove(handle.name)
+        return results
+
+    return recognize
 
 
 def run_asr(
@@ -267,6 +321,8 @@ def run_asr(
     asr_batch_size: int = 8,
     claims_dir: Optional[str] = None,
     force: bool = False,
+    asr_backend: str = "phowhisper",
+    kenlm_path: Optional[str] = None,
 ) -> str:
     """
     Input:
@@ -292,13 +348,16 @@ def run_asr(
     vad_model = load_silero_vad()
     print("Model Silero VAD đã load.")
 
-    asr_pipeline = pipeline(
-        "automatic-speech-recognition",
-        model=model_name,
-        device=pipe_device,
-        torch_dtype=dtype,
-    )
-    print(f"Model {model_name} đã load.")
+    if asr_backend == "chunkformer":
+        asr_pipeline = _build_chunkformer(model_name, kenlm_path)
+    else:
+        asr_pipeline = pipeline(
+            "automatic-speech-recognition",
+            model=model_name,
+            device=pipe_device,
+            torch_dtype=dtype,
+        )
+        print(f"Model {model_name} đã load.")
 
     out_dir = os.path.dirname(output_jsonl_path) or "."
     os.makedirs(out_dir, exist_ok=True)
@@ -417,8 +476,15 @@ def main():
         help="Danh sách tên file video cụ thể, phân cách bằng dấu phẩy. "
              "Để trống sẽ xử lý toàn bộ video trong --input_dir.",
     )
-    parser.add_argument("--model_name", default="vinai/PhoWhisper-large",
-                         help="Đổi sang vinai/PhoWhisper-medium nếu VRAM hạn chế.")
+    parser.add_argument("--model_name", default=None,
+                         help="Đổi sang vinai/PhoWhisper-medium nếu VRAM hạn chế. "
+                              "Để trống sẽ chọn mặc định theo --asr_backend.")
+    parser.add_argument("--asr_backend", default="phowhisper",
+                        choices=["phowhisper", "chunkformer"],
+                        help="Backend ASR. chunkformer là đích đến; phowhisper "
+                             "chỉ còn để đối chiếu và sẽ bị xóa sau khi có số đo.")
+    parser.add_argument("--kenlm_path", default=None,
+                        help="File KenLM cho pyctcdecode. Bỏ trống = decode greedy.")
     parser.add_argument("--shot_threshold", type=float, default=0.5,
                          help="Ngưỡng quyết định ranh giới shot của TransNetV2 (mặc định 0.5).")
     parser.add_argument("--vad_threshold", type=float, default=VAD_THRESHOLD,
@@ -450,6 +516,10 @@ def main():
     video_paths = [os.path.join(args.input_dir, v) for v in video_files]
     print(f"Sẽ xử lý {len(video_paths)} video: {video_files}")
 
+    model_name = args.model_name or (
+        "khanhld/chunkformer-ctc-large-vie" if args.asr_backend == "chunkformer"
+        else "vinai/PhoWhisper-large")
+
     shots_path = os.path.join(args.output_dir, "shots.jsonl")
     whisper_path = os.path.join(args.output_dir, "whisper.jsonl")
 
@@ -462,7 +532,7 @@ def main():
     if not args.skip_asr:
         run_asr(
             video_paths, whisper_path,
-            model_name=args.model_name,
+            model_name=model_name,
             vad_threshold=args.vad_threshold,
             vad_max_speech_duration_s=args.vad_max_speech_duration_s,
             vad_min_silence_duration_ms=args.vad_min_silence_duration_ms,
@@ -470,6 +540,8 @@ def main():
             asr_batch_size=args.asr_batch_size,
             claims_dir=args.claims_dir,
             force=args.force,
+            asr_backend=args.asr_backend,
+            kenlm_path=args.kenlm_path,
         )
     else:
         print("Bỏ qua ASR theo --skip_asr.")

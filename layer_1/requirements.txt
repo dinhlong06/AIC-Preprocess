@@ -4,6 +4,7 @@ tqdm
 accelerate
 ffmpeg-python
 silero-vad
+onnxruntime
 chunkformer
 pyctcdecode
 kenlm
