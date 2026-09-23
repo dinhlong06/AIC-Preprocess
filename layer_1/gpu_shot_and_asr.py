@@ -239,6 +239,22 @@ def run_shot_detection(
 # Layer 1b: PhoWhisper - ASR
 # --------------------------------------------------------------------------- #
 
+def _build_entries(video_id, speech_segments, results):
+    entries = []
+    for seg_idx, (seg, result) in enumerate(zip(speech_segments, results)):
+        text = result["text"].strip()
+        if not text:
+            continue
+        entries.append({
+            "video_id": video_id,
+            "seg_id": f"{video_id}_{seg_idx:06d}",
+            "start_ms": int(round(seg["start"] * 1000)),
+            "end_ms": int(round(seg["end"] * 1000)),
+            "text": text,
+        })
+    return entries
+
+
 def run_asr(
     video_paths: List[str],
     output_jsonl_path: str,
@@ -367,18 +383,7 @@ def run_asr(
         if not results and chunks:
             continue
 
-        entries = []
-        for seg_idx, (seg, result) in enumerate(zip(speech_segments, results)):
-            text = result["text"].strip()
-            if not text:
-                continue
-            entries.append({
-                "video_id": video_id,
-                "seg_id": f"{video_id}_{seg_idx:06d}",
-                "start_ms": int(round(seg["start"] * 1000)),
-                "end_ms": int(round(seg["end"] * 1000)),
-                "text": text,
-            })
+        entries = _build_entries(video_id, speech_segments, results)
 
         _append_video(output_jsonl_path, entries, video_id)
         total_segments_written += len(entries)
