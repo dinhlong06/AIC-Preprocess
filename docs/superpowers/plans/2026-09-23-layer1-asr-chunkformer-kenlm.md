@@ -18,6 +18,8 @@
 - **Schema `whisper.jsonl`** sau plan này: `{video_id, seg_id, start_ms, end_ms, text, confidence}`. Thêm trường là additive an toàn — `cpu_map_transcript.py` chỉ đọc 4 trường đầu, `layer_5/indexdb/ingest.py:110` truyền nguyên bản ghi vào Mongo.
 - **Máy GPU dùng chung** (8x RTX 2080 Ti, có co-tenant). Không chạy full dataset trong plan này. Mọi smoke test giới hạn 1 video.
 - **Không cài package lên host.** Mọi dependency chỉ cài trong Docker image của layer_1.
+- **`dataset/video` là symlink tới `/mlcv2025/Datasets/HCMAI25/batch2/video` và hiện RỖNG.** Video thật nằm ở `dataset_batch1/videos/video/` (873 file), là thứ `run_layer1_batch1.sh` dùng. Mọi smoke test phải dùng đường đó.
+- **Không bao giờ ghi vào `layer_1/batch1/`.** Đó là output production (57.846 segment). Smoke test luôn override `OUTPUT_DIR` sang `/tmp/...`.
 - **Giữ nguyên** `seg_id` dạng `f"{video_id}_{seg_idx:06d}"` với `seg_idx` đếm trên **toàn bộ** segment VAD (segment rỗng vẫn tiêu thụ một chỉ số, tạo lỗ hổng trong dãy seg_id). Đây là hành vi hiện có, không được đổi.
 
 ---
@@ -49,9 +51,8 @@ kenlm
 Tạo `layer_1/_probe_chunkformer.py`:
 
 ```python
-import sys
+import wave
 import numpy as np
-import soundfile as sf
 
 MODEL = "khanhld/chunkformer-ctc-large-vie"
 
@@ -67,7 +68,10 @@ print("type:", type(model))
 print("methods:", [n for n in dir(model) if not n.startswith("_")])
 
 print("== decode 3s im lặng ==")
-sf.write("/tmp/probe.wav", np.zeros(48000, dtype=np.float32), 16000)
+# wave stdlib thay soundfile: soundfile KHÔNG có trong requirements.txt.
+with wave.open("/tmp/probe.wav", "wb") as w:
+    w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
+    w.writeframes(np.zeros(48000, dtype="<i2").tobytes())
 out = model.endless_decode(audio_path="/tmp/probe.wav", chunk_size=64,
                            left_context_size=128, right_context_size=128,
                            total_batch_duration=1800, return_timestamps=False)
@@ -484,12 +488,12 @@ mkdir -p /tmp/asr_smoke
 GPU_ID=$(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
     | sort -t',' -k2 -n -r | head -1 | cut -d',' -f1 | tr -d ' ')
 docker run --rm --gpus "device=$GPU_ID" --shm-size=2g \
-    -v "$(cd .. && pwd)/dataset/video:/data/video:ro" \
+    -v "$(cd .. && pwd)/dataset_batch1/videos/video:/data/video:ro" \
     -v /tmp/asr_smoke:/data/output \
     -v "$PWD/cache:/root/.cache" \
     ai26-layer1 --input_dir /data/video --output_dir /data/output \
     --skip_shots --asr_backend chunkformer \
-    --videos "$(ls ../dataset/video | head -1)"
+    --videos "$(ls ../dataset_batch1/videos/video | head -1)"
 head -2 /tmp/asr_smoke/whisper.jsonl
 ```
 Expected: mỗi dòng có đủ 6 khóa gồm `confidence`, và `text` là tiếng Việt đọc được. Quan sát VRAM trong lúc chạy (`nvidia-smi`) và ghi lại đỉnh — đường ChunkFormer không có OOM backoff nên con số này là dữ kiện cho Task 7.
@@ -554,7 +558,7 @@ Expected: FAIL — chưa in log về LM, và chưa kiểm tra file KenLM.
 
 - [ ] **Step 3: Thêm kiểm tra và log vào `_build_chunkformer`**
 
-Thêm vào đầu `_build_chunkformer`, ngay sau dòng `model = _load_chunkformer_model(model_name)`:
+Thêm vào đầu `_build_chunkformer`, **TRƯỚC** dòng `model = _load_chunkformer_model(model_name)` — fail fast, đừng tải model ~1 GB rồi mới báo thiếu file LM:
 
 ```python
     if kenlm_path:
@@ -705,9 +709,9 @@ git commit -m "feat: add compare_asr to measure two ASR backends"
 
 **Files:**
 - Modify: `layer_1/run_layer1.sh`
-- Modify: `layer_1/Dockerfile:34-35`
+- Modify: `layer_1/run_layer1_batch1.sh` (cùng hai biến, vì batch1 mới là script chạy dữ liệu thật)
 
-- [ ] **Step 1: Thêm biến vào `run_layer1.sh`**
+- [ ] **Step 1: Thêm biến vào `run_layer1.sh` VÀ `run_layer1_batch1.sh`**
 
 Sau dòng `SHOT_THRESHOLD="0.5"` (dòng 33), thêm:
 
@@ -735,7 +739,7 @@ Và thêm hai cờ vào phần tham số truyền cho image, ngay trước `"$@"
 
 - [ ] **Step 3: Kiểm tra script vẫn parse được**
 
-Run: `bash -n layer_1/run_layer1.sh && echo "cú pháp OK"`
+Run: `bash -n layer_1/run_layer1.sh layer_1/run_layer1_batch1.sh && echo "cú pháp OK"`
 Expected: in ra `cú pháp OK`.
 
 - [ ] **Step 4: Chạy lại smoke test qua script**
@@ -743,8 +747,8 @@ Expected: in ra `cú pháp OK`.
 Run:
 ```bash
 cd layer_1
-OUTPUT_DIR=/tmp/asr_smoke2 ./run_layer1.sh --skip_shots \
-    --videos "$(ls ../dataset/video | head -1)"
+OUTPUT_DIR=/tmp/asr_smoke2 ./run_layer1_batch1.sh --skip_shots \
+    --videos "$(ls ../dataset_batch1/videos/video | head -1)"
 head -1 /tmp/asr_smoke2/whisper.jsonl
 ```
 Expected: chạy bằng ChunkFormer (mặc định mới), dòng output có đủ 6 khóa.
@@ -753,8 +757,8 @@ Expected: chạy bằng ChunkFormer (mặc định mới), dòng output có đ�
 
 ```bash
 cd /workingspace_aiclub/WorkingSpace/Personal/vannk/Ai_challange_2026
-git add layer_1/run_layer1.sh
-git commit -m "feat: default run_layer1.sh to chunkformer and mount kenlm"
+git add layer_1/run_layer1.sh layer_1/run_layer1_batch1.sh
+git commit -m "feat: default layer_1 scripts to chunkformer and mount kenlm"
 ```
 
 ---
@@ -810,10 +814,10 @@ Expected: PASS. Test nào mock `phowhisper` thì xóa cùng lúc.
 Run:
 ```bash
 cd layer_1
-OUTPUT_DIR=/tmp/asr_final ./run_layer1.sh --skip_shots \
-    --videos "$(ls ../dataset/video | head -1)"
+OUTPUT_DIR=/tmp/asr_final ./run_layer1_batch1.sh --skip_shots \
+    --videos "$(ls ../dataset_batch1/videos/video | head -1)"
 head -1 /tmp/asr_final/whisper.jsonl
-bash -n run_layer1_batch1.sh run_shards.sh run_shards_batch1.sh && echo "script OK"
+bash -n run_layer1.sh run_layer1_batch1.sh run_shards.sh run_shards_batch1.sh && echo "script OK"
 ```
 Expected: chạy được, output đủ 6 khóa, cả bốn script parse được.
 
