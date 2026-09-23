@@ -276,6 +276,13 @@ def _chunkformer_text(result):
 
 
 def _build_chunkformer(model_name, kenlm_path):
+    if kenlm_path:
+        if not os.path.exists(kenlm_path):
+            raise FileNotFoundError(f"Không tìm thấy file KenLM: {kenlm_path}")
+        print(f"Decode với KenLM: {kenlm_path}")
+    else:
+        print("Decode greedy — không có LM, phần sửa lỗi chính tả chưa bật.")
+
     model = _load_chunkformer_model(model_name)
     print(f"Model {model_name} đã load.")
 
