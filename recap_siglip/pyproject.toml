@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "keyframe-pipeline"
 version = "0.1.0"
-description = "SigLIP embeddings and Ollama captions for keyframe datasets"
+description = "SigLIP embeddings for keyframe datasets"
 requires-python = ">=3.10"
 dependencies = [
     # numpy<2 và torch>=2.1 để khớp base image pytorch:2.1.2-cuda11.8 (numpy 1.26,
@@ -16,7 +16,6 @@ dependencies = [
     # Cận trên bắt buộc: từ 4.47 transformers gọi torch.utils._pytree.register_pytree_node,
     # torch 2.1.2 của base image mới chỉ có _register_pytree_node -> import là AttributeError.
     "transformers>=4.40,<4.47",
-    "ollama>=0.4",
 ]
 
 [project.optional-dependencies]

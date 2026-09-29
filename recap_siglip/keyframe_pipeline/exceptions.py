@@ -26,14 +26,6 @@ class ModelInferenceError(KeyframePipelineError):
     """A model failed or returned an invalid response."""
 
 
-class OllamaUnavailableError(ModelInferenceError):
-    """The configured Ollama service cannot be reached."""
-
-
-class OllamaModelNotFoundError(ModelConfigurationError):
-    """The requested model has not been pulled into Ollama."""
-
-
 class ArtifactValidationError(KeyframePipelineError):
     """A serialized result does not match its schema/invariants."""
 

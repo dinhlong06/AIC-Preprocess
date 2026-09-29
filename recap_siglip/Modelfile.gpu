@@ -1,4 +1,0 @@
-FROM __BASE_MODEL__
-# num_gpu ép toàn bộ layer lên GPU: Ollama TỪ CHỐI nạp thay vì âm thầm offload
-# một phần sang CPU khi VRAM không đủ. Xem run_ollama.sh để biết lý do đo được.
-PARAMETER num_gpu __NUM_GPU__

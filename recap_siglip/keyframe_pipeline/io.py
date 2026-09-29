@@ -10,16 +10,12 @@ import numpy as np
 
 from .config import SIGLIP_EMBEDDING_DIM
 from .exceptions import ArtifactValidationError, OutputAlreadyExistsError
-from .types import CaptionRecord, RecapResult, SiglipResult
+from .types import SiglipResult
 
 
 def siglip_target_paths(video_id: str, output_dir: Path) -> tuple[Path, Path]:
     root = Path(output_dir).expanduser().resolve()
     return root / f"{video_id}.npy", root / f"{video_id}_ids.json"
-
-
-def recap_target_path(video_id: str, output_dir: Path) -> Path:
-    return Path(output_dir).expanduser().resolve() / f"{video_id}.jsonl"
 
 
 def preflight_targets(paths: Iterable[Path], *, overwrite: bool) -> None:
@@ -143,134 +139,3 @@ def load_siglip_result(
     )
     validate_siglip_result(result)
     return result
-
-
-def validate_recap_result(result: RecapResult) -> None:
-    if not result.records:
-        raise ArtifactValidationError("ReCap result is empty")
-    ids: set[str] = set()
-    for record in result.records:
-        if record.video_id != result.video_id:
-            raise ArtifactValidationError("Mixed video IDs in ReCap result")
-        if record.keyframe_id in ids:
-            raise ArtifactValidationError(
-                f"Duplicate keyframe ID {record.keyframe_id!r}"
-            )
-        ids.add(record.keyframe_id)
-        if not isinstance(record.caption, str) or not record.caption.strip():
-            raise ArtifactValidationError(
-                f"Empty caption for keyframe {record.keyframe_id!r}"
-            )
-        if (
-            not isinstance(record.corrected_ocr, tuple)
-            or any(not isinstance(text, str) or not text.strip() for text in record.corrected_ocr)
-            or len(set(record.corrected_ocr)) != len(record.corrected_ocr)
-        ):
-            raise ArtifactValidationError(
-                f"Invalid corrected_ocr for keyframe {record.keyframe_id!r}"
-            )
-
-
-def save_recap_result(
-    result: RecapResult,
-    output_path: Path,
-    *,
-    overwrite: bool = False,
-) -> RecapResult:
-    validate_recap_result(result)
-    path = Path(output_path).expanduser().resolve()
-    preflight_targets((path,), overwrite=overwrite)
-
-    def write_jsonl(temp_path: Path) -> None:
-        with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
-            for record in result.records:
-                json.dump(
-                    {
-                        "video_id": record.video_id,
-                        "keyframe_id": record.keyframe_id,
-                        "caption": record.caption,
-                        "corrected_ocr": list(record.corrected_ocr),
-                    },
-                    handle,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-                handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-
-    def write_failures(temp_path: Path) -> None:
-        with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
-            for failure in result.failures:
-                json.dump(
-                    {
-                        "video_id": result.video_id,
-                        "keyframe_id": failure.keyframe_id,
-                        "error": failure.error,
-                    },
-                    handle,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-                handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-
-    _atomic_write(path, write_jsonl)
-    failed_path = path.with_suffix(".failed.jsonl")
-    if result.failures:
-        _atomic_write(failed_path, write_failures)
-    else:
-        failed_path.unlink(missing_ok=True)
-    return RecapResult(result.video_id, result.records, path, result.failures)
-
-
-def load_recap_result(output_path: Path) -> RecapResult:
-    path = Path(output_path).expanduser().resolve()
-    records: list[CaptionRecord] = []
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line_number, line in enumerate(handle, start=1):
-                if not line.strip():
-                    raise ArtifactValidationError(
-                        f"Blank JSONL line at {path}:{line_number}"
-                    )
-                payload = json.loads(line)
-                if not isinstance(payload, dict) or set(payload) != {
-                    "video_id",
-                    "keyframe_id",
-                    "caption",
-                    "corrected_ocr",
-                }:
-                    raise ArtifactValidationError(
-                        f"Invalid JSONL schema at {path}:{line_number}"
-                    )
-                if not all(
-                    isinstance(payload[key], str)
-                    for key in ("video_id", "keyframe_id", "caption")
-                ) or not isinstance(payload["corrected_ocr"], list):
-                    raise ArtifactValidationError(
-                        f"Invalid JSONL types at {path}:{line_number}"
-                    )
-                records.append(
-                    CaptionRecord(
-                        video_id=payload["video_id"],
-                        keyframe_id=payload["keyframe_id"],
-                        caption=payload["caption"],
-                        corrected_ocr=tuple(payload["corrected_ocr"]),
-                    )
-                )
-    except ArtifactValidationError:
-        raise
-    except Exception as exc:
-        raise ArtifactValidationError(f"Cannot load {path}") from exc
-
-    if not records:
-        raise ArtifactValidationError(f"ReCap artifact is empty: {path}")
-    video_id = records[0].video_id
-    if path.stem != video_id:
-        raise ArtifactValidationError("ReCap filename does not match video_id")
-    result = RecapResult(video_id, tuple(records), path)
-    validate_recap_result(result)
-    return result
-
