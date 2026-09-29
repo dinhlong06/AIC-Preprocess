@@ -35,6 +35,11 @@ paddle:
     blur_threshold: 50.0             # Laplacian variance below this = skip as blurry
 
   ocr:
+    # Stage-1 engine: "paddle" (PaddleOCR det + VietOCR/Paddle rec) or
+    # "deepsolo_parseq" (DeepSolo det + PARSeq-VN rec -- better on the 60-frame
+    # bottom-band GT: R 93.6% vs 75.2% with diacritics; needs ./run_deepsolo.sh
+    # because only the ocr-deepsolo-parseq image has detectron2/DeepSolo/PARSeq).
+    engine: "paddle"
     lang: "vi"
     # PP-OCRv6 ignores `lang` entirely (en/vi byte-identical) and its marks
     # are often wrong (see paddleocr-vietnamese-charset-gap memory) -- kept

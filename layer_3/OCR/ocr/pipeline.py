@@ -17,6 +17,7 @@ API call.
 from __future__ import annotations
 
 import json
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -29,9 +30,24 @@ from .loader import load_frames
 from .paddle_engine import PaddleEngine
 
 
+def _build_engine(engine_cfg: dict):
+    if engine_cfg.get("engine") == "deepsolo_parseq":
+        from .deepsolo_engine import DeepSoloParseqEngine
+
+        return DeepSoloParseqEngine(
+            det_threshold=engine_cfg.get("det_threshold", 0.15),
+            min_size=engine_cfg.get("min_size", 1080),
+        )
+    return PaddleEngine(
+        lang=engine_cfg.get("lang", "vi"),
+        ocr_version=engine_cfg.get("ocr_version"),
+        unclip_ratio=engine_cfg.get("unclip_ratio"),
+    )
+
+
 def _process_video_frames(
     group: list[tuple[str, str]],
-    engine: PaddleEngine,
+    engine,
     blur_thresh: float,
     preprocess: bool,
 ) -> tuple[list[dict], list[dict]]:
@@ -89,10 +105,14 @@ def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dic
     for frame_id, path in frames:
         by_video[Path(path).parent.name].append((frame_id, path))
 
-    engine: PaddleEngine | None = None
+    engine = None
     n_processed = 0
     for video_id, group in tqdm(by_video.items(), desc="claim", unit="video"):
         if (done_dir / f"{video_id}.json").exists():
+            continue
+        # Chạy song song layer_2: video chưa có statistics.json là đang ghi dở ảnh, bỏ
+        # qua để vòng sau nhận (claim rồi thì không bao giờ làm lại).
+        if not (Path(group[0][1]).parent / "statistics.json").exists():
             continue
         try:
             (claimed_dir / video_id).touch(exist_ok=False)
@@ -100,11 +120,7 @@ def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dic
             continue
 
         if engine is None:
-            engine = PaddleEngine(
-                lang=engine_cfg.get("lang", "vi"),
-                ocr_version=engine_cfg.get("ocr_version"),
-                unclip_ratio=engine_cfg.get("unclip_ratio"),
-            )
+            engine = _build_engine(engine_cfg)
 
         records, records_origin = _process_video_frames(group, engine, blur_thresh, preprocess)
         done_marker = done_dir / f"{video_id}.json"
@@ -144,13 +160,10 @@ def run_paddle_pipeline(cfg: dict) -> None:
         print(f"[->] Resume: {len(done)}/{len(frames)} frames already done, skipping.")
 
     engine_cfg = cfg.get("ocr", {})
-    print(f"[->] {len(frames)} frames, lang={engine_cfg.get('lang', 'vi')}, preprocess={preprocess}")
-    engine = PaddleEngine(
-        lang=engine_cfg.get("lang", "vi"),
-        ocr_version=engine_cfg.get("ocr_version"),
-        unclip_ratio=engine_cfg.get("unclip_ratio"),
-    )
+    print(f"[->] {len(frames)} frames, engine={engine_cfg.get('engine', 'paddle')}, preprocess={preprocess}")
+    engine = _build_engine(engine_cfg)
 
+    t0 = time.time()
     records: list[dict] = []
     records_origin: list[dict] = []
     skipped_blur = 0
@@ -188,7 +201,11 @@ def run_paddle_pipeline(cfg: dict) -> None:
         records.append(record)
         records_origin.append(record_origin)
 
+    elapsed = time.time() - t0
     print(f"[->] Skipped -- blur={skipped_blur}")
+    print(f"[->] {len(frames)} frames in {elapsed:.1f}s ({len(frames) / max(elapsed, 1e-9):.2f} fps)")
+    if hasattr(engine, "det_ms"):
+        print(f"[->] det {engine.det_ms / max(len(frames), 1):.0f} ms/frame, rec {engine.rec_ms / max(len(frames), 1):.0f} ms/frame")
     save_output(records, output_file)
     save_output(records_origin, output_file_paddle_origin)
     print(f"[->] Saved {len(records)} records -> {Path(output_file).resolve()}")

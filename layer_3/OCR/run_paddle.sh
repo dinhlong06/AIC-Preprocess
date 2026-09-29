@@ -24,7 +24,7 @@ IMAGE_NAME="ocr-paddle"
 PIPELINE="${PIPELINE:-pipeline_c}"
 FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark/$PIPELINE}"
 OUTPUT_DIR="$SCRIPT_DIR/output"
-mkdir -p "$OUTPUT_DIR" "$SCRIPT_DIR/cache/paddlex"
+mkdir -p "$OUTPUT_DIR" "$SCRIPT_DIR/cache/paddlex" "$SCRIPT_DIR/cache/torch"
 
 GPU_ID="${GPU_ID:-$(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
     | sort -t',' -k2 -n -r | head -1 | cut -d',' -f1 | tr -d ' ')}"
@@ -38,6 +38,7 @@ docker run --rm \
     -v "$FRAMES_DIR:/data/frames:ro" \
     -v "$OUTPUT_DIR:/data/output" \
     -v "$SCRIPT_DIR/cache/paddlex:/root/.paddlex" \
+    -v "$SCRIPT_DIR/cache/torch:/root/.cache/torch" \
     "$IMAGE_NAME" \
     --input /data/frames \
     --output /data/output/output_vietocr.json \
