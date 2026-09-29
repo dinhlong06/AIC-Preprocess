@@ -17,4 +17,4 @@ def test_create_collections(mv):
 @pytest.mark.integration
 def test_collection_dims():
     assert COLLECTIONS["beit3"] == 1024
-    assert COLLECTIONS["siglip"] == 1152
+    assert COLLECTIONS["siglip2"] == 1152

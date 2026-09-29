@@ -22,7 +22,7 @@ def test_build_frame_doc_minimal():
     assert doc["ocr_text"] == ""
     assert doc["ocr_api"] == ""
     assert doc["caption"] == ""
-    assert doc["embeddings"] == {"beit3": False, "siglip": False, "siglip2": False, "clip32": False}
+    assert doc["embeddings"] == {"beit3": False, "siglip2": False}
     assert doc["synced"] == {"elastic": False, "milvus": False}
 
 def test_build_seg_doc():

@@ -35,6 +35,7 @@ _DATA_ROOT = os.getenv("DATA_ROOT", "/data")
 DEFAULT_SHOTS_PATH = os.path.join(_DATA_ROOT, "layer_1", "batch1", "shots.jsonl")
 DEFAULT_TRANSCRIPTS_PATH = os.path.join(
     _DATA_ROOT, "layer_2", "shot_transcript", "shot_transcripts_batch1.jsonl")
+DEFAULT_ASR_PATH = os.path.join(_DATA_ROOT, "layer_1", "batch1", "whisper.jsonl")
 
 
 def _read_keyframes_jsonl(video_dir):
@@ -122,6 +123,7 @@ def _load_gemma(path):
 def _purge(video_id, store, es):
     store.frames.delete_many({"video_id": video_id})
     store.shots.delete_many({"video_id": video_id})
+    store.transcript_segments.delete_many({"video_id": video_id})
     store.ingest_status.delete_one({"_id": video_id})
     es.client.delete_by_query(index=es.index_name, refresh=True,
                               body={"query": {"term": {"video_id": video_id}}})
@@ -157,6 +159,9 @@ def main():
                     help="shots.jsonl batch1")
     ap.add_argument("--transcripts", default=DEFAULT_TRANSCRIPTS_PATH,
                     help="shot_transcripts_batch1.jsonl")
+    ap.add_argument("--asr-segments", default=DEFAULT_ASR_PATH,
+                    help="whisper.jsonl của layer 1 — nạp vào transcript_segments "
+                         "cho endpoint /transcript/{video_id}")
     ap.add_argument("--videos", nargs="*")
     ap.add_argument("--batch", default="batch1")
     mode = ap.add_mutually_exclusive_group()
@@ -178,6 +183,7 @@ def main():
     ocr_api = _load_ocr(args.ocr_api)
     objects_by_frame = _load_objects(args.objects)
     shots_by_video = _group_by_video(args.shots)
+    segs_by_video = _group_by_video(args.asr_segments)
     shot_lookup = _build_shot_lookup(shots_by_video)
     transcripts = {r["shot_id"]: r["text"] for r in
                    (json.loads(l) for l in open(args.transcripts, encoding="utf-8"))} \
@@ -226,6 +232,8 @@ def main():
 
         for shot in shots_by_video.get(video_id, []):
             writer.upsert_shot(shot, transcript=transcripts.get(shot["shot_id"], ""))
+        for seg in segs_by_video.get(video_id, []):
+            writer.upsert_seg(seg)
 
         media_info_path = os.path.join(args.root, "media-info", f"{video_id}.json")
         fps = _derive_fps(keyframes)

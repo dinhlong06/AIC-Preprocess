@@ -8,10 +8,6 @@
 #   ./run.sh logs [service]            # xem log, mặc định elasticsearch
 #   ./run.sh test                      # pytest (cần stack đang chạy)
 #   ./run.sh init                      # tạo index/collection rỗng (1 lần, sau reset)
-#   ./run.sh ingest [cờ...]            # nạp batch2 (layer_1/2/3), cờ truyền thẳng cho indexdb.ingest:
-#         ./run.sh ingest --resume                     # chỉ video mới
-#         ./run.sh ingest                              # cập nhật OCR/caption
-#         ./run.sh ingest --purge --videos K01_V001    # layer_2 chạy lại
 #   ./run.sh ingest-batch1 [cờ...]     # nạp dataset_batch1 (BTC) dùng keyframes.jsonl + SigLIP2 batch1,
 #                                      # cờ thêm truyền thẳng cho indexdb.ingest_batch1 (--keyframes-dir/--ocr/--siglip2-dir ghi đè được):
 #         ./run.sh ingest-batch1 --videos L21_V001      # 1 video
@@ -95,10 +91,6 @@ test)
 init)
     py -m indexdb.init_stores
     ;;
-ingest)
-    shift
-    py -m indexdb.ingest --root /data "$@"
-    ;;
 ingest-batch1)
     shift
     py -m indexdb.ingest_batch1 --root /data/dataset_batch1 \
@@ -114,6 +106,7 @@ ingest-batch2)
         --ocr '/data/output_batch2/gemma_ocr*.jsonl' \
         --shots /data/output_batch2/shots.jsonl \
         --transcripts /data/output_batch2/shot_transcripts.jsonl \
+        --asr-segments /data/output_batch2/asr/whisper.jsonl \
         --siglip2-dir /data/output_batch2/siglip "$@"
     ;;
 shell)

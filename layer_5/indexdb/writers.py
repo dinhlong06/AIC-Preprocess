@@ -51,7 +51,3 @@ class MongoWriter:
             upsert=True,
         )
 
-    def set_synced(self, frame_id: str, target: str, value: bool = True):
-        self.store.frames.update_one(
-            {"_id": frame_id}, {"$set": {f"synced.{target}": value}}
-        )

@@ -90,7 +90,7 @@ Nếu không muốn cài `pymongo`/`pymilvus`/`elasticsearch` hay join Docker ne
 - Base URL: `http://<server-ip>:8021` (cần VPN vào mạng server; đặt `API_KEY` trong shell hoặc `layer_5/.env` trước khi `docker compose up` để service `api` auth request; nếu không đặt, mọi request có auth đều bị 401).
 - Mọi request cần header `X-API-Key: <giá trị API_KEY>`, trừ `GET /health`.
 - `/search/vector`, `/search/ocr`, `/search/asr`, `/search/object`, `/search/all` nhận thêm field tuỳ chọn trong body JSON: `top_k` (mặc định 100), `video_ids` (lọc theo video, rỗng/None nghĩa là KHÔNG lọc). `/search/ocr` match trên `ocr_text`+`ocr_api`, `/search/asr` match trên `transcript`, `/search/all` match trên `content_all` (gộp cả 3 nguồn text), `/search/object` nhận `labels: list[str]` và match chính xác `object_tags` (keyword, không fuzzy), score là confidence detector thật (max giữa các object cùng nhãn), không phải điểm term-match.
-- `image_path` trong response của `/keyframes` là đường dẫn tuyệt đối tính theo `DATA_ROOT` của server (mặc định `/data`) — không resolve được trực tiếp trên máy caller, chỉ dùng để hiển thị/predict trên máy đã mount cùng dataset.
+- `image_path` trong response của `/frames` là đường dẫn tuyệt đối tính theo `DATA_ROOT` của server (mặc định `/data`) — không resolve được trực tiếp trên máy caller, chỉ dùng để hiển thị/predict trên máy đã mount cùng dataset.
 
 ```bash
 curl http://<server-ip>:8021/health
@@ -115,7 +115,7 @@ curl -X POST http://<server-ip>:8021/search/all \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{"query": "một khu chợ hoa", "top_k": 20}'
 
-curl -X POST http://<server-ip>:8021/keyframes \
+curl -X POST http://<server-ip>:8021/frames \
   -H "X-API-Key: <key>" -H "Content-Type: application/json" \
   -d '{"ids": ["v001_f0001", "v001_f0002"]}'
 

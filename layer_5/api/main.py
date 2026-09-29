@@ -51,12 +51,10 @@ class SearchVectorRequest(BaseModel):
     model_config = ConfigDict(json_schema_extra={
         "examples": [
             {"model": "beit3", "vector": [0.01, -0.02, "... (1024 chiều)"], "top_k": 20},
-            {"model": "siglip", "vector": [0.01, -0.02, "... (1152 chiều)"], "top_k": 20},
             {"model": "siglip2", "vector": [0.01, -0.02, "... (1152 chiều)"], "top_k": 20},
-            {"model": "clip32", "vector": [0.01, -0.02, "... (512 chiều)"], "top_k": 20},
         ]
     })
-    model: Literal["beit3", "siglip", "siglip2", "clip32"]
+    model: Literal["beit3", "siglip2"]
     vector: list[float]
     top_k: int = 100
     video_ids: list[str] | None = Field(default=None, description=VIDEO_IDS_DESC)
@@ -111,7 +109,7 @@ def health():
     summary="Tìm bằng vector embedding (candidate generation)",
     description=(
         "Bạn tự encode text/ảnh thành vector, Reader không encode hộ. `model` là "
-        "`beit3` (1024D), `siglip` (1152D), `siglip2` (1152D) hoặc `clip32` (512D). Score là Milvus COSINE similarity "
+        "`beit3` (1024D) hoặc `siglip2` (1152D). Score là Milvus COSINE similarity "
         "(∈ [-1, 1]), `min_score` lọc trực tiếp trên thang này qua Milvus range search.\n\n"
         "Không hỗ trợ `frame_ids` (chỉ các endpoint text mới lọc được theo frame) — "
         "pipeline rerank là: lấy candidate rộng ở đây rồi truyền `frame_ids` vào `/search/*` text."
