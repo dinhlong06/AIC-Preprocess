@@ -1,13 +1,13 @@
-# OCR Pipeline Configuration -- 2 stages, run separately (see README.md)
-#   Stage 1 (run_paddle.py):  GPU detection+recognition -> raw ASCII text
-#   Stage 2 (run_correct.py): ising-calibration VLM restores diacritics
+# OCR Pipeline Configuration -- stage 1 (see README.md)
+#   run_paddle.py: GPU detection+recognition, tự hiệu đính dấu trong từng frame
+#   run_vlm_correct.py: sửa box bị gộp chữ sau merge_recognizers.py (stage 3)
 # -----------------------------------------------------------------------------
 
 paddle:
   # run_paddle.sh always passes --input pointing at
   # ../../layer_2/Keyframe_Extracting/benchmark/<PIPELINE> -- this is only the
   # fallback for calling run_paddle.py directly without the wrapper script.
-  input_dir: "../../layer_2/Keyframe_Extracting/benchmark/pipeline_c"
+  input_dir: "../../layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g"
   # VietOCR result (every non-empty box, no confidence filter, see
   # ocr/paddle_engine.py) -- this is what stage 2 corrects.
   output_file: "./output/output_vietocr.json"
@@ -35,41 +35,25 @@ paddle:
     blur_threshold: 50.0             # Laplacian variance below this = skip as blurry
 
   ocr:
-    # Stage-1 engine: "paddle" (PaddleOCR det + VietOCR/Paddle rec) or
-    # "deepsolo_parseq" (DeepSolo det + PARSeq-VN rec -- better on the 60-frame
-    # bottom-band GT: R 93.6% vs 75.2% with diacritics; needs ./run_deepsolo.sh
-    # because only the ocr-deepsolo-parseq image has detectron2/DeepSolo/PARSeq).
+    # PaddleOCR det + VietOCR/Paddle rec.
     engine: "paddle"
     lang: "vi"
     # PP-OCRv6 ignores `lang` entirely (en/vi byte-identical) and its marks
-    # are often wrong (see paddleocr-vietnamese-charset-gap memory) -- kept
-    # as-is, no ascii-stripping workaround; stage 2 restores correct marks
-    # from the image regardless.
+    # are often wrong (see paddleocr-vietnamese-charset-gap memory) -- giữ
+    # nguyên, không workaround bằng ascii-stripping; corrector sửa dấu ngay
+    # trong từng frame.
     ocr_version: null   # omit for paddleocr's current default (PP-OCRv6 as of 3.7.0)
     # Measured to NOT fix word-merging ("TINCHINH"-type errors) -- kept only
     # as an escape hatch, do not set without re-testing (see memory).
     unclip_ratio: null
 
-correct:
-  # Same frames folder passed to run_paddle.sh / --input for stage 1.
-  frames_dir: "../../layer_2/Keyframe_Extracting/benchmark/pipeline_c"
-  paddle_output: "./output/output_vietocr.json"
-  output_file: "./output/output_hybrid.json"
-  # NVIDIA_API_KEY env var is required (or pass --api-key)
-  checkpoint_every: 20
-  # Concurrent requests to the ising-calibration API. An isolated 60-frame
-  # benchmark measured 6 as the sweet spot, but a real 714-frame run stalled
-  # visibly at 6 (key already warmed up from a day of testing) -- 4 is the
-  # current default based on that live observation. Re-measure before raising.
-  workers: 4
-
-# Third stage (run_vlm_correct.py, separate GPU container, Dockerfile.vlm) --
+# Stage 3 (run_vlm_correct.py, container riêng dựng từ OCR_v2/Dockerfile.vllm) --
 # targeted correction for boxes still merged into a space-less blob after
 # merge_recognizers.py (~0.55% of boxes on batch1, see ocr/vlm_correct.py
 # docstring for the full measurement/decision history). Runs on the merged
 # output of merge_recognizers.py, not on paddle's raw output directly.
 vlm_correct:
-  frames_dir: "../../layer_2/Keyframe_Extracting/benchmark/pipeline_c"
+  frames_dir: "../../layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g"
   merged_input: "./output/output_vietocr_merged.json"
   output_file: "./output/output_vlm_corrected.json"
   model_dir: "../OCR_v2/models/qwen3-vl-4b-vi-ocr"

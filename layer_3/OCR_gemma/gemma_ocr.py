@@ -20,7 +20,6 @@ import argparse, base64, glob, json, os, random, shutil, ssl, threading, time, u
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
 # Qwen chạy trên GPU riêng: dồn caption sang đó khi Gemma đang bận OCR. Cả hai đều nghẽn ở server chứ
 # không ở số request (Gemma 1120: 16->40 song song chỉ 4.1->4.4 frame/s; Qwen ~1.3 frame/s ở 8 hay 16).
 # ais26/ais31: Gemma 4 trên Google AI Studio (GEMINI_API_KEY) -- quota riêng, chạy song song với UIT. Ảnh cố
@@ -68,7 +67,11 @@ TASKS = {"ocr": (PROMPT, 1120, 768), "caption": (CAPTION_PROMPT, 560, 300)}  # p
 # Server trả 429 ngay khi vượt ~40 request đồng thời/key; key dùng chung với retrieval_system
 # backend nên chừa chỗ cho nó -- Gemma 32 + Qwen 16 chạy cùng lúc vẫn chưa thấy 429.
 
-ctx = ssl.create_default_context(cafile=str(ROOT / "certs/uit-ca-bundle.pem"))
+# UIT endpoint presents a private CA, nhưng bundle là cấu hình deployment chứ không phải
+# code nên không nằm trong repo. Trỏ UIT_CA_BUNDLE vào file đó; không đặt thì dùng
+# trust store của hệ thống (đủ cho các model ais*, vốn gọi Google).
+_ca_bundle = os.environ.get("UIT_CA_BUNDLE")
+ctx = ssl.create_default_context(cafile=_ca_bundle) if _ca_bundle else None
 
 
 def ask(path, task, model, key=1):

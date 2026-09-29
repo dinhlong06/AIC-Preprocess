@@ -28,8 +28,6 @@ def _parse_args() -> argparse.Namespace:
                          help="Worker-pool mode: claim+process one video at a time under DIR, "
                               "skipping videos already claimed/done -- for running several shards "
                               "against the same input concurrently")
-    parser.add_argument("--engine", choices=["paddle", "deepsolo_parseq"], default=None,
-                        help="Override paddle.ocr.engine (deepsolo_parseq needs ./run_deepsolo.sh)")
     return parser.parse_args()
 
 

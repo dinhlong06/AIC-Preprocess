@@ -1,17 +1,12 @@
 """
-pipeline.py -- end-to-end orchestrators for the two OCR pipeline stages
+pipeline.py -- orchestrator cho OCR stage 1
 
-Stage 1 (run_paddle_pipeline): GPU detection+recognition (PaddleOCR PP-OCRv6),
-already corrected locally per-frame via corrector.correct_record_locally.
-Stage 2 (run_correct_pipeline) is now a no-op pass over stage 1's output, kept
-only so callers of the old two-stage flow (run_correct.py/run_api.sh) still
-get an output_hybrid.json -- see corrector.py for why the API-based
-ising-calibration correction was retired in favor of local correction.
+run_paddle_pipeline: GPU detection+recognition (PaddleOCR PP-OCRv6), đã hiệu
+đính dấu tiếng Việt ngay trong từng frame qua corrector.correct_record_locally.
 
-Both stages share the same skip-heuristic idea (ported from an earlier local
-Paddle+VietOCR pipeline, retired): a frame identical/near-identical to the one before it reuses that result
-instead of re-running (GPU) inference or paying for another (rate-limited)
-API call.
+Chia sẻ ý tưởng skip-heuristic (ported từ một pipeline Paddle+VietOCR cũ, đã
+bỏ): frame giống/near-giống frame trước thì dùng lại kết quả thay vì chạy
+lại inference (GPU).
 """
 
 from __future__ import annotations
@@ -31,13 +26,6 @@ from .paddle_engine import PaddleEngine
 
 
 def _build_engine(engine_cfg: dict):
-    if engine_cfg.get("engine") == "deepsolo_parseq":
-        from .deepsolo_engine import DeepSoloParseqEngine
-
-        return DeepSoloParseqEngine(
-            det_threshold=engine_cfg.get("det_threshold", 0.15),
-            min_size=engine_cfg.get("min_size", 1080),
-        )
     return PaddleEngine(
         lang=engine_cfg.get("lang", "vi"),
         ocr_version=engine_cfg.get("ocr_version"),
@@ -277,21 +265,3 @@ def run_vlm_correct_pipeline(cfg: dict) -> None:
     save_output(records, output_file)
     progress_path.write_text(json.dumps(sorted(done_frame_ids)), encoding="utf-8")
     print(f"[->] Corrected {len(targets)} box(es) -> {Path(output_file).resolve()}", flush=True)
-
-
-def run_correct_pipeline(cfg: dict, api_key: str) -> None:
-    import json
-
-    from .corrector import correct_record_locally
-
-    paddle_output: str = cfg["paddle_output"]
-    output_file: str = cfg["output_file"]
-
-    paddle = json.loads(Path(paddle_output).read_text(encoding="utf-8"))
-    # Stage 1 already runs correct_record_locally on every frame (see
-    # run_paddle_pipeline), so this is a no-op pass kept only so callers of
-    # the old two-stage flow (run_correct.py/run_api.sh) still get an
-    # output_hybrid.json -- no API calls, nothing left to correct here.
-    records = [correct_record_locally(rec) for rec in paddle]
-    save_output(records, output_file)
-    print(f"[->] Saved {len(records)} records -> {Path(output_file).resolve()}")

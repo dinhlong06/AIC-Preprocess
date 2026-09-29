@@ -3,13 +3,12 @@
 #
 # Cách dùng:
 #   ./run_paddle.sh                        # chạy full mọi video trong $PIPELINE
-#   PIPELINE=pipeline_a ./run_paddle.sh    # đổi pipeline nguồn
+#   FRAMES_DIR=/path/khac ./run_paddle.sh    # đổi thư mục keyframe nguồn
 #   ./run_paddle.sh --limit 60             # mọi flag thừa đều forward cho run_paddle.py
 #
-# Input: layer_2/Keyframe_Extracting/benchmark/<PIPELINE>/ -- loader.py quét đệ quy
+# Input: layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g/ -- loader.py quét đệ quy
 # nên tự gộp mọi video trong đó (frame_id đã unique toàn cục, không lo trùng).
-# Override: FRAMES_DIR=/path/khac ./run_paddle.sh   (bỏ qua PIPELINE)
-# Output: output/output_vietocr.json (VietOCR + Paddle fallback, used by stage 2)
+# Output: output/output_vietocr.json (VietOCR + Paddle fallback)
 #         output/output_paddle_origin.json (Paddle's own recognizer, uncorrected, for comparison)
 #
 # Host này là GPU server dùng chung -> mặc định chọn 1 GPU đang rảnh nhất
@@ -21,8 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 IMAGE_NAME="ocr-paddle"
-PIPELINE="${PIPELINE:-pipeline_c}"
-FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark/$PIPELINE}"
+FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g}"
 OUTPUT_DIR="$SCRIPT_DIR/output"
 mkdir -p "$OUTPUT_DIR" "$SCRIPT_DIR/cache/paddlex" "$SCRIPT_DIR/cache/torch"
 

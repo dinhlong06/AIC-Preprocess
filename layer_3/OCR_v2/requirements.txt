@@ -1,5 +1,0 @@
-# Baseline production (VietOCR+Paddle) lấy từ ../OCR/output_batch1/output_hybrid.json
-# có sẵn, không tự chạy lại engine -- nên không cần paddleocr/paddlex/vietocr/torch
-# ở đây nữa. Chỉ cần client HTTP gọi vLLM server.
-openai
-pyyaml
