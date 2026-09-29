@@ -5,11 +5,11 @@
         [--ocr layer_3/OCR_gemma/gemma_ocr_batch1.jsonl] \\
         [--captions 'layer_3/OCR_gemma/*_caption_batch1.jsonl'] \\
         [--ocr-api layer_3/OCR/output_batch1_v2/output_vlm_corrected.json] \\
-        --siglip2-dir recap_siglip/artifacts/siglip_batch1 \\
+        --siglip2-dir siglip/artifacts/siglip_batch1 \\
         [--videos L21_V001 ...]
 
 Nguồn metadata: keyframes.jsonl từ pipeline_g (keyframe extraction output).
-Nguồn embedding: SigLIP2 SO400M (1152d) từ recap_siglip/artifacts/siglip_batch1/.
+Nguồn embedding: SigLIP2 SO400M (1152d) từ siglip/artifacts/siglip_batch1/.
 frame_id = keyframe_id = SigLIP2 embedding ID (L21_V001_000000_kf0001).
 """
 import argparse

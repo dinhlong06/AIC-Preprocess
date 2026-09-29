@@ -78,7 +78,7 @@ def main():
     args = ap.parse_args()
 
     kf_root = os.path.join(args.root, "layer_2/Keyframe_Extracting/benchmark", args.pipeline)
-    siglip_dir = os.path.join(args.root, "recap_siglip/artifacts/siglip")
+    siglip_dir = os.path.join(args.root, "siglip/artifacts/siglip")
     recap_dir = os.path.join(args.root, "recap_siglip/artifacts/recap")
 
     shots = _group_by_video(os.path.join(args.root, "layer_1/shots.jsonl"))

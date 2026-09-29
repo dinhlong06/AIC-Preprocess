@@ -5,7 +5,7 @@
 # đó -> artifact không đọc được từ container chạy user khác (layer_5 ingest chạy
 # bằng appuser uid 10001). Chỉ cần chạy MỘT LẦN cho data cũ; artifact mới đã 644.
 #
-#   ./fix_perms.sh          # sửa artifacts/ của recap_siglip
+#   ./fix_perms.sh          # sửa artifacts/ của siglip
 #   ./fix_perms.sh <dir>    # sửa thư mục khác
 
 set -euo pipefail

@@ -105,7 +105,7 @@ ingest-batch1)
         --keyframes-dir /data/layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g \
         --ocr /data/layer_3/OCR_gemma/gemma_ocr_batch1.jsonl \
         --captions '/data/layer_3/OCR_gemma/*_caption_batch1.jsonl' \
-        --siglip2-dir /data/recap_siglip/artifacts/siglip_batch1_v2 "$@"
+        --siglip2-dir /data/siglip/artifacts/siglip_batch1_v2 "$@"
     ;;
 ingest-batch2)
     shift

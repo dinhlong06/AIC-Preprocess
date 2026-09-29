@@ -1,18 +1,27 @@
 #!/usr/bin/env bash
-# Chạy SigLIP embedding song song nhiều shard, mỗi shard một GPU riêng, cho
-# layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g.
+# Build + chạy SigLIP embedding của keyframe_pipeline trong Docker, chia shard
+# song song — mỗi shard một GPU riêng.
 #
-# Khác run_shards_batch1.sh của layer_2: extract_siglip_dataset đã tự resume
-# theo .npy có sẵn, và job chỉ tốn vài chục phút nên không cần add/drain/stop —
-# chỉ cần chia video ra N thư mục symlink riêng để N container không đụng nhau.
+# Cách dùng:
+#   ./run.sh                          # 4 shard song song (mặc định)
+#   NSHARDS=1 ./run.sh                # 1 GPU, 1 process
+#   NSHARDS=8 ./run.sh --overwrite
+#   FRAMES_DIR=/path OUTPUT_DIR=/path ./run.sh
 #
-#   ./run_siglip_shards_batch1.sh                 # 4 shard
-#   NSHARDS=8 ./run_siglip_shards_batch1.sh
-#   ./run_siglip_shards_batch1.sh --overwrite --batch-size 64
+# Env:
+#   FRAMES_DIR   nguồn keyframe (mặc định benchmark_batch1/pipeline_g)
+#   OUTPUT_DIR   nơi ghi .npy + _ids.json (mặc định artifacts/siglip_batch1_v2)
+#   NSHARDS      số shard = số GPU dùng song song (mặc định 4)
+#   MIN_FREE_MB  VRAM trống tối thiểu để chọn GPU (mặc định 1500)
 #
-# Input : layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g/<VIDEO_ID>/*.jpg
-# Output: ./artifacts/siglip_batch1/<VIDEO_ID>.npy + <VIDEO_ID>_ids.json — dùng
-#         chung OUTPUT_DIR vì mỗi video chỉ thuộc đúng một shard, không tranh ghi.
+# .model_cache/huggingface giữ weight SigLIP (~3,5 GB) ngoài image, bind-mount
+# vào container. Lần chạy đầu tải model, các lần sau dùng lại.
+# Video đã có .npy thì siglip-dataset tự bỏ qua, nên chạy lại là resume.
+#
+# extract_siglip_dataset tự resume theo .npy có sẵn nên chỉ cần chia video ra
+# N thư mục symlink để N container không đụng nhau. Chia round-robin theo thứ
+# tự tên (thay vì chunk liên tiếp) để các shard đều nhau, tránh một shard toàn
+# L26 (video dài nhất).
 
 set -euo pipefail
 
@@ -21,19 +30,17 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 IMAGE_NAME="ai26-siglip"
 FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g}"
-OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/artifacts/siglip_batch1}"
+OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/artifacts/siglip_batch1_v2}"
 CACHE_DIR="${CACHE_DIR:-$SCRIPT_DIR/.model_cache/huggingface}"
-SHARDS_DIR="${SHARDS_DIR:-$SCRIPT_DIR/.shard_frames_batch1}"
+SHARDS_DIR="${SHARDS_DIR:-$SCRIPT_DIR/.shard_frames}"
 NSHARDS="${NSHARDS:-4}"
+# so400m fp16 ~1,5 GB VRAM, ngưỡng 1500 MB là đủ an toàn.
+MIN_FREE_MB="${MIN_FREE_MB:-1500}"
 mkdir -p "$OUTPUT_DIR" "$CACHE_DIR"
 
-# so400m ~1,5 GB VRAM ở fp16, không phải BEiT-3 Large 3 GB, nên ngưỡng thấp hơn
-# nhiều so với layer_2 (4000 MB) là đủ an toàn.
-MIN_FREE_MB="${MIN_FREE_MB:-1500}"
 mapfile -t GPUS < <(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
     | awk -F', *' -v m="$MIN_FREE_MB" '$2 >= m' | sort -t',' -k2 -n -r \
     | head -"$NSHARDS" | cut -d',' -f1 | tr -d ' ')
-
 if [[ ${#GPUS[@]} -eq 0 ]]; then
     echo "TỪ CHỐI: không GPU nào còn >= ${MIN_FREE_MB} MB trống."
     nvidia-smi --query-gpu=index,memory.free --format=csv,noheader
@@ -44,26 +51,21 @@ if [[ ${#GPUS[@]} -lt $NSHARDS ]]; then
     NSHARDS=${#GPUS[@]}
 fi
 
-# Chỉ lấy video layer_2 đã ghi xong (có statistics.json), để chạy được nhiều vòng song
-# song với layer_2; video đã có .npy thì siglip-dataset tự bỏ qua.
-mapfile -t VIDEOS < <(find "$FRAMES_DIR" -mindepth 2 -maxdepth 2 -name statistics.json -printf '%h\n' \
-    | xargs -rn1 basename | grep -E '^[A-Za-z]+[0-9]+[_-]V[0-9]+$' | sort)
+mapfile -t VIDEOS < <(find "$FRAMES_DIR" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' \
+    | grep -E '^[A-Za-z]+[0-9]+[_-]V[0-9]+$' | sort)
 if [[ ${#VIDEOS[@]} -eq 0 ]]; then
     echo "TỪ CHỐI: không tìm thấy thư mục video nào dưới $FRAMES_DIR"
     exit 1
 fi
 
-# Chia round-robin theo thứ tự tên (thay vì chunk liên tiếp) để các shard đều
-# nhau về prefix/độ dài video, tránh một shard toàn L26 (video dài nhất).
 rm -rf "$SHARDS_DIR"
 for ((i = 0; i < NSHARDS; i++)); do
     mkdir -p "$SHARDS_DIR/shard_$i"
 done
 for ((v = 0; v < ${#VIDEOS[@]}; v++)); do
-    shard=$((v % NSHARDS))
-    # Target là path TRONG container (/data/frames_all, mount riêng bên dưới), không
-    # phải path host — symlink tuyệt đối theo host sẽ gãy vì host không mount cùng chỗ.
-    ln -s "/data/frames_all/${VIDEOS[v]}" "$SHARDS_DIR/shard_$shard/${VIDEOS[v]}"
+    # Target là path TRONG container (/data/frames_all, mount riêng bên dưới),
+    # không phải path host — symlink tuyệt đối theo host sẽ gãy.
+    ln -s "/data/frames_all/${VIDEOS[v]}" "$SHARDS_DIR/shard_$((v % NSHARDS))/${VIDEOS[v]}"
 done
 
 echo "== Build image $IMAGE_NAME =="
@@ -76,7 +78,7 @@ for ((i = 0; i < NSHARDS; i++)); do
     echo "  shard $i -> GPU ${GPUS[i]}, $n video, log: $log"
     docker run --rm \
         --gpus "device=${GPUS[i]}" \
-        --shm-size=2g \
+        --ipc=host \
         -v "$SHARDS_DIR/shard_$i:/data/frames:ro" \
         -v "$FRAMES_DIR:/data/frames_all:ro" \
         -v "$OUTPUT_DIR:/data/output" \

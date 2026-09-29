@@ -6,10 +6,10 @@ SigLIP2 1152 chiều** cho mỗi keyframe (chạy trong Docker, GPU).
 ## 1. Chạy bằng Docker (đường chạy chính)
 
 ```bash
-./run_siglip_shards_batch1.sh          # sharded, nguồn batch1 v2 (đang dùng)
-./run_siglip_batch1.sh                 # chạy 1 process toàn batch1
-FRAMES_DIR=/path OUTPUT_DIR=/path ./run_siglip_batch1.sh
-GPU_ID=5 ./run_siglip_batch1.sh        # ghim GPU thay vì tự chọn
+./run.sh                               # 4 shard song song, mỗi shard 1 GPU
+NSHARDS=1 ./run.sh                     # 1 GPU, 1 process
+FRAMES_DIR=/path OUTPUT_DIR=/path ./run.sh
+MIN_FREE_MB=3000 ./run.sh              # siết ngưỡng VRAM trống để chọn GPU
 ```
 
 - Weight SigLIP (~3,5 GB) nằm ở `.model_cache/huggingface` và được bind-mount vào
