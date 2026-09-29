@@ -2,9 +2,13 @@
 # Chạy Layer 1 song song nhiều shard trên nhiều GPU.
 #
 #   ./run_shards.sh shots          # TransNetV2, nghẽn ở CPU (ffmpeg decode)
-#   ./run_shards.sh asr            # PhoWhisper, nghẽn ở GPU
+#   ./run_shards.sh asr            # ChunkFormer, nghẽn ở GPU
 #   NSHARDS=6 ./run_shards.sh shots
 #   ./run_shards.sh merge          # gộp jsonl các shard về shots.jsonl / whisper.jsonl
+#
+# Env:
+#   VIDEO_DIR   thư mục video (mặc định dataset/video)
+#   BATCH_DIR   nơi ghi jsonl + shard root (mặc định $SCRIPT_DIR)
 #
 # Mỗi shard ghi vào thư mục riêng: nhiều process cùng append một jsonl trên NFS
 # sẽ xé dòng giữa chừng. Video chia kiểu round-robin cho đều độ dài.
@@ -18,12 +22,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STAGE="${1:-shots}"
 NSHARDS="${NSHARDS:-4}"
-SHARD_ROOT="$SCRIPT_DIR/shards"
+BATCH_DIR="${BATCH_DIR:-$SCRIPT_DIR}"
+SHARD_ROOT="$BATCH_DIR/shards"
+export VIDEO_DIR="${VIDEO_DIR:-$PROJECT_ROOT/dataset/video}"
 
 if [[ "$STAGE" == "merge" ]]; then
-    n_total=$(cd "$PROJECT_ROOT/dataset/video" && ls *.mp4 | wc -l)
+    n_total=$(ls "$VIDEO_DIR" | grep -cE '\.(mp4|mov)$')
     for name in shots whisper; do
-        out="$SCRIPT_DIR/$name.jsonl"
+        out="$BATCH_DIR/$name.jsonl"
         found=("$SHARD_ROOT"/*/"$name.jsonl")
         [[ -e "${found[0]}" ]] || continue
         n_done=$(cat "$SHARD_ROOT"/*/"$name.jsonl.done" 2>/dev/null | sort -u | wc -l)
@@ -40,7 +46,7 @@ if [[ "$STAGE" == "merge" ]]; then
     exit 0
 fi
 
-mapfile -t VIDEOS < <(cd "$PROJECT_ROOT/dataset/video" && ls *.mp4 | sort)
+mapfile -t VIDEOS < <(ls "$VIDEO_DIR" | grep -E '\.(mp4|mov)$' | sort)
 mapfile -t GPUS < <(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
     | sort -t',' -k2 -n -r | head -"$NSHARDS" | cut -d',' -f1 | tr -d ' ')
 
@@ -54,16 +60,14 @@ find "$CLAIMS" -mindepth 1 -maxdepth 1 -type f -delete
 # Gieo claim cho video đã xong ở BẤT KỲ shard nào. Mỗi shard chỉ đọc .done của
 # riêng nó, nên thiếu bước này là shard khác làm lại và ghi trùng vào jsonl.
 cat "$SHARD_ROOT/${STAGE}"_*/"$NAME.jsonl.done" 2>/dev/null | sort -u \
-    | while read -r v; do [[ -n "$v" ]] && : > "$CLAIMS/$v"; done
+    | while read -r v; do [[ -n "$v" ]] && : > "$CLAIMS/$v"; done || true
 
 echo "== $STAGE: ${#VIDEOS[@]} video / $NSHARDS shard / GPU ${GPUS[*]} / đã gieo $(ls "$CLAIMS" | wc -l) claim =="
 
 for ((i = 0; i < NSHARDS; i++)); do
     out="$SHARD_ROOT/${STAGE}_$i"
     mkdir -p "$out"
-    # Backend ASR: mặc định chunkformer, truyền xuống cho khỏi phải set tay.
     OUTPUT_DIR="$out" GPU_ID="${GPUS[i]}" CLAIMS_DIR="$CLAIMS" \
-        ASR_BACKEND="${ASR_BACKEND:-chunkformer}" \
         "$SCRIPT_DIR/run_layer1.sh" \
             --claims_dir /data/claims \
             "$( [[ "$STAGE" == "shots" ]] && echo --skip_asr || echo --skip_shots )" \

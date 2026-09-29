@@ -1,8 +1,5 @@
-transformers==4.46.3
 opencv-python-headless
 tqdm
-accelerate
-ffmpeg-python
 silero-vad
 onnxruntime
 chunkformer

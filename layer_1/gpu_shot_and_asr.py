@@ -129,9 +129,9 @@ def has_audio(video_path: str) -> bool:
 def extract_audio_to_wav(video_path: str, wav_path: str) -> None:
     """Tách audio từ video sang wav mono 16kHz bằng ffmpeg.
 
-    Bắt buộc phải qua bước này trước khi đưa vào ASR pipeline: một số bản
-    `transformers` không tự nhận diện được container video (.mp4/.mkv), chỉ
-    đọc được các định dạng audio thuần (wav/flac/mp3) qua backend `soundfile`.
+    Bắt buộc phải qua bước này trước khi đưa vào ASR pipeline: thư viện đọc
+    audio không tự nhận diện được container video (.mp4/.mkv), chỉ đọc được
+    các định dạng audio thuần (wav/flac/mp3).
     """
     cmd = [
         "ffmpeg", "-y", "-i", video_path,
@@ -249,7 +249,7 @@ def run_shot_detection(
 
 
 # --------------------------------------------------------------------------- #
-# Layer 1b: PhoWhisper - ASR
+# Layer 1b: ChunkFormer - ASR
 # --------------------------------------------------------------------------- #
 
 def _build_entries(video_id, speech_segments, results):
@@ -323,22 +323,20 @@ def _build_chunkformer(model_name):
 def run_asr(
     video_paths: List[str],
     output_jsonl_path: str,
-    model_name: str = "vinai/PhoWhisper-large",
+    model_name: str = "khanhld/chunkformer-ctc-large-vie",
     tmp_dir: Optional[str] = None,
     vad_threshold: float = VAD_THRESHOLD,
     vad_max_speech_duration_s: float = VAD_MAX_SPEECH_DURATION_S,
     vad_min_silence_duration_ms: int = VAD_MIN_SILENCE_DURATION_MS,
     vad_speech_pad_ms: int = VAD_SPEECH_PAD_MS,
-    asr_batch_size: int = 8,
     claims_dir: Optional[str] = None,
     force: bool = False,
-    asr_backend: str = "chunkformer",
 ) -> str:
     """
     Input:
         video_paths: danh sách ĐƯỜNG DẪN ĐẦY ĐỦ tới các file video (có audio).
         output_jsonl_path: nơi ghi kết quả (append + resumable).
-        model_name: cho phép đổi sang PhoWhisper-medium/small nếu VRAM hạn chế.
+        model_name: model ChunkFormer CTC tiếng Việt; chỉ cần đổi khi thử model khác.
         tmp_dir: thư mục lưu file .wav tạm (mặc định: cùng thư mục output).
         vad_*: tham số Silero VAD (xem hằng VAD_* ở đầu file để biết ý nghĩa).
 
@@ -348,26 +346,13 @@ def run_asr(
         (mỗi dòng ứng với 1 đoạn tiếng nói do Silero VAD phát hiện, không phải 1 chunk cố định)
     """
     from silero_vad import load_silero_vad, read_audio, get_speech_timestamps  # noqa: E501
-    from transformers import pipeline  # import trễ để tránh load torch nếu --skip_asr
 
-    print(f"=== Layer 1: ASR {asr_backend} ({model_name}) + Silero VAD ===")
-    device = _get_device()
-    dtype = torch.float16 if device.type == "cuda" else torch.float32
-    pipe_device = 0 if device.type == "cuda" else -1
+    print(f"=== Layer 1: ASR {model_name} + Silero VAD ===")
 
     vad_model = load_silero_vad()
     print("Model Silero VAD đã load.")
 
-    if asr_backend == "chunkformer":
-        asr_pipeline = _build_chunkformer(model_name)
-    else:
-        asr_pipeline = pipeline(
-            "automatic-speech-recognition",
-            model=model_name,
-            device=pipe_device,
-            torch_dtype=dtype,
-        )
-        print(f"Model {model_name} đã load.")
+    asr_pipeline = _build_chunkformer(model_name)
 
     out_dir = os.path.dirname(output_jsonl_path) or "."
     os.makedirs(out_dir, exist_ok=True)
@@ -383,7 +368,7 @@ def run_asr(
 
     total_segments_written = 0
 
-    for video_path in tqdm(video_paths, desc=f"ASR {asr_backend}"):
+    for video_path in tqdm(video_paths, desc="ASR chunkformer"):
         video_file = os.path.basename(video_path)
         video_id = os.path.splitext(video_file)[0]
 
@@ -440,21 +425,10 @@ def run_asr(
             }
             for s in speech_segments
         ]
-        results = []
-        # GPU dùng chung: co-tenant có thể chiếm chỗ giữa chừng. Batch 1 luôn vừa,
-        # và cho kết quả y hệt batch lớn nên hạ xuống là an toàn, không mất chất lượng.
-        for batch in (asr_batch_size, 1) if asr_batch_size > 1 else (1,):
-            try:
-                with torch.inference_mode():
-                    results = asr_pipeline(chunks, batch_size=batch) if chunks else []
-                break
-            except torch.cuda.OutOfMemoryError as e:
-                print(f"  [OOM] batch={batch} trên {video_file}: {e}")
-                torch.cuda.empty_cache()
-            except Exception as e:
-                print(f"  [ERROR] PhoWhisper lỗi trên {video_file}: {e}")
-                break
-        else:
+        try:
+            results = asr_pipeline(chunks) if chunks else []
+        except Exception as e:
+            print(f"  [ERROR] ASR lỗi trên {video_file}: {e}")
             continue
         if not results and chunks:
             continue
@@ -484,7 +458,7 @@ def run_asr(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Layer 1 (GPU): TransNetV2 shot detection + PhoWhisper ASR."
+        description="Layer 1 (GPU): TransNetV2 shot detection + ChunkFormer ASR."
     )
     parser.add_argument("--input_dir", required=True, help="Thư mục chứa video đầu vào.")
     parser.add_argument("--output_dir", required=True, help="Thư mục ghi shots.jsonl / whisper.jsonl.")
@@ -493,13 +467,8 @@ def main():
         help="Danh sách tên file video cụ thể, phân cách bằng dấu phẩy. "
              "Để trống sẽ xử lý toàn bộ video trong --input_dir.",
     )
-    parser.add_argument("--model_name", default=None,
-                         help="Đổi sang vinai/PhoWhisper-medium nếu VRAM hạn chế. "
-                              "Để trống sẽ chọn mặc định theo --asr_backend.")
-    parser.add_argument("--asr_backend", default="chunkformer",
-                        choices=["phowhisper", "chunkformer"],
-                        help="Backend ASR. chunkformer là đích đến; phowhisper "
-                             "chỉ còn để đối chiếu và sẽ bị xóa sau khi có số đo.")
+    parser.add_argument("--model_name", default="khanhld/chunkformer-ctc-large-vie",
+                        help="Model ChunkFormer CTC cho tiếng Việt.")
     parser.add_argument("--shot_threshold", type=float, default=0.5,
                          help="Ngưỡng quyết định ranh giới shot của TransNetV2 (mặc định 0.5).")
     parser.add_argument("--vad_threshold", type=float, default=VAD_THRESHOLD,
@@ -510,12 +479,10 @@ def main():
                          help=f"Khoảng lặng tối thiểu để tách 2 đoạn, ms (mặc định {VAD_MIN_SILENCE_DURATION_MS}).")
     parser.add_argument("--vad_speech_pad_ms", type=int, default=VAD_SPEECH_PAD_MS,
                          help=f"Đệm 2 đầu mỗi đoạn VAD, ms (mặc định {VAD_SPEECH_PAD_MS}).")
-    parser.add_argument("--asr_batch_size", type=int, default=8,
-                        help="Số segment PhoWhisper chạy cùng lúc. Giảm xuống nếu GPU chung đang bận.")
     parser.add_argument("--claims_dir", default=None,
                         help="Thư mục claim dùng chung khi chạy nhiều shard song song.")
     parser.add_argument("--skip_shots", action="store_true", help="Bỏ qua bước TransNetV2.")
-    parser.add_argument("--skip_asr", action="store_true", help="Bỏ qua bước PhoWhisper.")
+    parser.add_argument("--skip_asr", action="store_true", help="Bỏ qua bước ASR.")
     parser.add_argument("--force", action="store_true",
                          help="Bỏ qua resume: xử lý lại các video đang chọn (xóa dòng cũ của chúng "
                               "trong file output trước khi ghi), không đụng video khác.")
@@ -531,10 +498,6 @@ def main():
     video_paths = [os.path.join(args.input_dir, v) for v in video_files]
     print(f"Sẽ xử lý {len(video_paths)} video: {video_files}")
 
-    model_name = args.model_name or (
-        "khanhld/chunkformer-ctc-large-vie" if args.asr_backend == "chunkformer"
-        else "vinai/PhoWhisper-large")
-
     shots_path = os.path.join(args.output_dir, "shots.jsonl")
     whisper_path = os.path.join(args.output_dir, "whisper.jsonl")
 
@@ -547,15 +510,13 @@ def main():
     if not args.skip_asr:
         run_asr(
             video_paths, whisper_path,
-            model_name=model_name,
+            model_name=args.model_name,
             vad_threshold=args.vad_threshold,
             vad_max_speech_duration_s=args.vad_max_speech_duration_s,
             vad_min_silence_duration_ms=args.vad_min_silence_duration_ms,
             vad_speech_pad_ms=args.vad_speech_pad_ms,
-            asr_batch_size=args.asr_batch_size,
             claims_dir=args.claims_dir,
             force=args.force,
-            asr_backend=args.asr_backend,
         )
     else:
         print("Bỏ qua ASR theo --skip_asr.")
