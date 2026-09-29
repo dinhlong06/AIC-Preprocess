@@ -16,6 +16,7 @@ MIN_FREE_MB=3000 ./run.sh              # siết ngưỡng VRAM trống để ch�
   container, không nhét vào image. Lần chạy đầu tải model, các lần sau dùng lại.
 - Script tự chọn GPU còn nhiều VRAM nhất qua `nvidia-smi` — máy dùng chung,
   đừng mặc định GPU 0.
+- Chạy lại `./run.sh` là resume: video đã có `.npy` bị bỏ qua.
 
 ## 2. Input
 
@@ -53,21 +54,19 @@ Entrypoint của image là `python3 -m keyframe_pipeline`:
 
 | Subcommand | Việc |
 |---|---|
-| `siglip-dataset` | embed cả dataset |
+| `siglip-dataset` | embed cả dataset (tự resume: video đã có `.npy` bị bỏ qua) |
 | `siglip-video` | embed một video |
-| `run` | alias siglip-dataset qua facade (`KeyframePipeline`) |
 
 ## 5. Public Python API
 
 ```python
 from pathlib import Path
 
-from keyframe_pipeline import KeyframePipeline, discover_video
+from keyframe_pipeline import discover_video, extract_siglip
 
 video = discover_video(Path("/path/frames/L21_V001"))
-pipeline = KeyframePipeline(siglip_device=None)  # None = tự chọn CUDA nếu có
 
-siglip = pipeline.run_siglip(
+siglip = extract_siglip(
     video.keyframes,
     output_dir=Path("artifacts/siglip"),
     batch_size=32,
