@@ -13,7 +13,13 @@ node_modules/
 # Data / model caches (large, not meant for git)
 cache/
 dataset/
-dataset_batch1/
+dataset_batch*/
+kf_batch2*/
+video_batch2*/
+gemma_*_image/
+beit3_output/
+siglip_output/
+AIC2026_Artiz_System/
 eda_output/
 output/
 output*/
@@ -88,3 +94,13 @@ eda_video_themes.py
 
 test*/
 experiments/
+
+# Runtime artifacts / backups / symlinks not meant for git
+layer_1/batch1_greedy/
+*.done
+*.bak*
+/kf_batch2_src
+/video_batch2
+*.docx
+cat_sample_*.json
+layer_3/OCR_gemma/*.tsv
