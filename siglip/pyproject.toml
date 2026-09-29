@@ -18,19 +18,8 @@ dependencies = [
     "transformers>=4.40,<4.47",
 ]
 
-[project.optional-dependencies]
-test = ["pytest>=8"]
-
 [project.scripts]
 keyframe-pipeline = "keyframe_pipeline.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["keyframe_pipeline*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-q"
-markers = [
-    "integration: requires external models or services",
-    "slow: long-running inference test",
-]

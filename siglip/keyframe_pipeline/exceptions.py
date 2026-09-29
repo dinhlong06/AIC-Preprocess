@@ -14,10 +14,6 @@ class InvalidKeyframeInputError(KeyframePipelineError):
     """A keyframe record or image is invalid."""
 
 
-class AlignmentError(KeyframePipelineError):
-    """Artifacts and input keyframes do not have the same identity/order."""
-
-
 class ModelConfigurationError(KeyframePipelineError):
     """A configured model/backend cannot satisfy the public contract."""
 

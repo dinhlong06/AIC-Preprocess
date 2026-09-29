@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .backends import TransformersSiglipBackend
+from .backends.siglip_transformers import TransformersSiglipBackend
 from .config import (
     DEFAULT_SIGLIP_MODEL_ID,
     DEFAULT_SIGLIP_NUM_WORKERS,
@@ -20,62 +20,30 @@ from .io import (
     siglip_target_paths,
     validate_siglip_result,
 )
-from .protocols import SiglipBackend
 from .types import Keyframe, SiglipDatasetResult, SiglipResult
 
 
-def _resolve_backend(
-    backend: SiglipBackend | None,
+def _encode_video(
+    items: tuple[Keyframe, ...],
+    backend: TransformersSiglipBackend,
     *,
-    model_id: str,
-    device: str | None,
-    num_workers: int,
-) -> SiglipBackend:
-    if backend is not None:
-        if (
-            model_id != DEFAULT_SIGLIP_MODEL_ID
-            or device is not None
-            or num_workers != DEFAULT_SIGLIP_NUM_WORKERS
-        ):
-            raise InvalidArgumentError(
-                "model_id/device/num_workers cannot override an injected SigLIP backend"
-            )
-        return backend
-    return TransformersSiglipBackend(
-        model_id=model_id, device=device, num_workers=num_workers
-    )
-
-
-def extract_siglip(
-    keyframes: Sequence[Keyframe],
-    *,
-    backend: SiglipBackend | None = None,
-    model_id: str = DEFAULT_SIGLIP_MODEL_ID,
-    output_dir: Path | None = None,
-    batch_size: int = 32,
-    device: str | None = None,
-    num_workers: int = DEFAULT_SIGLIP_NUM_WORKERS,
-    overwrite: bool = False,
+    output_dir: Path | None,
+    batch_size: int,
+    overwrite: bool,
 ) -> SiglipResult:
-    if batch_size <= 0:
-        raise InvalidArgumentError("batch_size must be positive")
-    items = validate_keyframes(keyframes)
     video_id = items[0].video_id
     if output_dir is not None:
         preflight_targets(
             siglip_target_paths(video_id, output_dir), overwrite=overwrite
         )
-    resolved_backend = _resolve_backend(
-        backend, model_id=model_id, device=device, num_workers=num_workers
-    )
-    if resolved_backend.embedding_dim != SIGLIP_EMBEDDING_DIM:
+    if backend.embedding_dim != SIGLIP_EMBEDDING_DIM:
         raise ModelInferenceError(
-            f"SigLIP backend dimension {resolved_backend.embedding_dim}; "
+            f"SigLIP backend dimension {backend.embedding_dim}; "
             f"expected {SIGLIP_EMBEDDING_DIM}"
         )
 
     raw = np.asarray(
-        resolved_backend.encode_paths([item.image_path for item in items], batch_size)
+        backend.encode_paths([item.image_path for item in items], batch_size)
     )
     expected_shape = (len(items), SIGLIP_EMBEDDING_DIM)
     if raw.ndim != 2 or raw.shape != expected_shape:
@@ -101,11 +69,31 @@ def extract_siglip(
     return result
 
 
+def extract_siglip(
+    keyframes: Sequence[Keyframe],
+    *,
+    model_id: str = DEFAULT_SIGLIP_MODEL_ID,
+    output_dir: Path | None = None,
+    batch_size: int = 32,
+    device: str | None = None,
+    num_workers: int = DEFAULT_SIGLIP_NUM_WORKERS,
+    overwrite: bool = False,
+) -> SiglipResult:
+    if batch_size <= 0:
+        raise InvalidArgumentError("batch_size must be positive")
+    items = validate_keyframes(keyframes)
+    backend = TransformersSiglipBackend(
+        model_id=model_id, device=device, num_workers=num_workers
+    )
+    return _encode_video(
+        items, backend, output_dir=output_dir, batch_size=batch_size, overwrite=overwrite
+    )
+
+
 def extract_siglip_from_dir(
     video_dir: Path,
     *,
     video_id: str | None = None,
-    backend: SiglipBackend | None = None,
     model_id: str = DEFAULT_SIGLIP_MODEL_ID,
     output_dir: Path | None = None,
     batch_size: int = 32,
@@ -116,7 +104,6 @@ def extract_siglip_from_dir(
     video = discover_video(video_dir, video_id=video_id)
     return extract_siglip(
         video.keyframes,
-        backend=backend,
         model_id=model_id,
         output_dir=output_dir,
         batch_size=batch_size,
@@ -130,7 +117,6 @@ def extract_siglip_dataset(
     dataset_root: Path,
     *,
     output_dir: Path,
-    backend: SiglipBackend | None = None,
     model_id: str = DEFAULT_SIGLIP_MODEL_ID,
     batch_size: int = 32,
     device: str | None = None,
@@ -150,13 +136,14 @@ def extract_siglip_dataset(
         [path for video in videos for path in siglip_target_paths(video.video_id, output_dir)],
         overwrite=overwrite,
     )
-    resolved_backend = _resolve_backend(
-        backend, model_id=model_id, device=device, num_workers=num_workers
+    # Dựng backend MỘT lần cho cả dataset — model chỉ load đúng một lần.
+    backend = TransformersSiglipBackend(
+        model_id=model_id, device=device, num_workers=num_workers
     )
     results = tuple(
-        extract_siglip(
+        _encode_video(
             video.keyframes,
-            backend=resolved_backend,
+            backend,
             output_dir=output_dir,
             batch_size=batch_size,
             overwrite=overwrite,

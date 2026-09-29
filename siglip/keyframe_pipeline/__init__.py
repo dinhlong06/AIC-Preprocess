@@ -1,4 +1,4 @@
-from .backends import TransformersSiglipBackend
+from .backends.siglip_transformers import TransformersSiglipBackend
 from .config import (
     DEFAULT_SIGLIP_MODEL_ID,
     DEFAULT_SIGLIP_NUM_WORKERS,
@@ -6,7 +6,6 @@ from .config import (
 )
 from .discovery import discover_dataset, discover_video
 from .exceptions import (
-    AlignmentError,
     ArtifactValidationError,
     DatasetLayoutError,
     InvalidArgumentError,
@@ -16,7 +15,6 @@ from .exceptions import (
     ModelInferenceError,
     OutputAlreadyExistsError,
 )
-from .facade import KeyframePipeline
 from .siglip import (
     extract_siglip,
     extract_siglip_dataset,
