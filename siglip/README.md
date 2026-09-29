@@ -1,26 +1,27 @@
 # SigLIP Embedding Pipeline
 
-Package `keyframe_pipeline` đọc keyframe ảnh của layer 2 và tạo **embedding
-SigLIP2 1152 chiều** cho mỗi keyframe (chạy trong Docker, GPU).
+The `keyframe_pipeline` package reads image keyframes from layer 2 and produces
+a **SigLIP2 1152-dim embedding** for each keyframe (runs in Docker on GPU).
 
-## 1. Chạy bằng Docker (đường chạy chính)
+## 1. Running via Docker (main path)
 
 ```bash
-./run.sh                               # 4 shard song song, mỗi shard 1 GPU
+./run.sh                               # 4 parallel shards, one GPU per shard
 NSHARDS=1 ./run.sh                     # 1 GPU, 1 process
 FRAMES_DIR=/path OUTPUT_DIR=/path ./run.sh
-MIN_FREE_MB=3000 ./run.sh              # siết ngưỡng VRAM trống để chọn GPU
+MIN_FREE_MB=3000 ./run.sh              # tighten free-VRAM threshold for GPU picking
 ```
 
-- Weight SigLIP (~3,5 GB) nằm ở `.model_cache/huggingface` và được bind-mount vào
-  container, không nhét vào image. Lần chạy đầu tải model, các lần sau dùng lại.
-- Script tự chọn GPU còn nhiều VRAM nhất qua `nvidia-smi` — máy dùng chung,
-  đừng mặc định GPU 0.
-- Chạy lại `./run.sh` là resume: video đã có `.npy` bị bỏ qua.
+- SigLIP weights (~3.5 GB) live in `.model_cache/huggingface` and are bind-mounted
+  into the container, not baked into the image. First run downloads the model,
+  later runs reuse it.
+- The script picks the GPU with the most free VRAM via `nvidia-smi` — shared
+  machine, do not default to GPU 0.
+- Re-running `./run.sh` resumes: videos that already have a `.npy` are skipped.
 
 ## 2. Input
 
-Mỗi thư mục video chứa trực tiếp các ảnh keyframe:
+Each video directory contains its keyframe images directly:
 
 ```text
 <dataset-root>/
@@ -29,10 +30,10 @@ Mỗi thư mục video chứa trực tiếp các ảnh keyframe:
     └── ...
 ```
 
-- Hỗ trợ `.jpg`, `.jpeg`, `.png`, `.webp`; natural order.
-- `video_id` là tên thư mục, phải khớp `[A-Z]+<số>_V<số>`.
-- `--dataset-root` nhận cả thư mục chứa trực tiếp các thư mục video, lẫn thư mục
-  cha có `keyframes/` bên trong.
+- Supports `.jpg`, `.jpeg`, `.png`, `.webp`; natural sort order.
+- `video_id` is the directory name and must match `[A-Z]+<digits>_V<digits>`.
+- `--dataset-root` accepts either a directory holding video directories
+  directly, or a parent that contains a `keyframes/` subdirectory.
 
 ## 3. Output
 
@@ -42,20 +43,21 @@ artifacts/siglip_batch1_v2/
 └── L21_V001_ids.json
 ```
 
-- `.npy`: NumPy array shape `(N, 1152)`, dtype `float32`, mỗi hàng L2-normalize;
-  hàng thứ `i` ứng với ID thứ `i` trong `_ids.json`.
-- File ID là list phẳng JSON: `["001","002",...]`.
-- Cùng format với embedding BEiT-3 của layer 2 (khác số chiều: 1152 vs 1024).
-- Downstream: `layer_5/indexdb/ingest_batch1.py` đọc `--siglip2-dir` từ đây.
+- `.npy`: NumPy array of shape `(N, 1152)`, dtype `float32`, each row
+  L2-normalized; row `i` corresponds to ID `i` in `_ids.json`.
+- The IDs file is a flat JSON list: `["001","002",...]`.
+- Same format as layer 2's BEiT-3 embeddings (differs only in dimension:
+  1152 vs 1024).
+- Downstream: `layer_5/indexdb/ingest_batch1.py` reads `--siglip2-dir` from here.
 
 ## 4. CLI
 
-Entrypoint của image là `python3 -m keyframe_pipeline`:
+The image entrypoint is `python3 -m keyframe_pipeline`:
 
-| Subcommand | Việc |
+| Subcommand | Purpose |
 |---|---|
-| `siglip-dataset` | embed cả dataset (tự resume: video đã có `.npy` bị bỏ qua) |
-| `siglip-video` | embed một video |
+| `siglip-dataset` | embed a whole dataset (auto-resumes: videos with an existing `.npy` are skipped) |
+| `siglip-video` | embed a single video |
 
 ## 5. Public Python API
 
@@ -74,7 +76,7 @@ siglip = extract_siglip(
 print(siglip.embeddings.shape)   # (N, 1152)
 ```
 
-Đọc lại artifact đã lưu:
+Reading back a saved artifact:
 
 ```python
 from keyframe_pipeline import load_siglip_result
@@ -85,9 +87,10 @@ siglip = load_siglip_result(
 )
 ```
 
-## 6. Lỗi thường gặp
+## 6. Common errors
 
-- `Output already exists`: thêm `--overwrite` nếu thực sự muốn thay artifact cũ.
-- `CUDA was requested ... but CUDA PyTorch is unavailable`: bỏ `--device cuda:0`.
-- `Expected .../keyframes or direct <PREFIX>nn_Vnnn video directories`: sai
-  `--dataset-root`, hoặc tên thư mục video không khớp pattern ở mục 2.
+- `Output already exists`: pass `--overwrite` if you really want to replace the artifact.
+- `CUDA was requested ... but CUDA PyTorch is unavailable`: drop `--device cuda:0`.
+- `Expected .../keyframes or direct <PREFIX>nn_Vnnn video directories`: wrong
+  `--dataset-root`, or the video directory name doesn't match the pattern in
+  section 2.
