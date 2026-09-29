@@ -10,7 +10,7 @@ from PIL import Image
 from .exceptions import DatasetLayoutError, InvalidKeyframeInputError
 from .types import DatasetIndex, Keyframe, VideoKeyframes
 
-VIDEO_PATTERN = re.compile(r"^[A-Z]+\d+_V\d+$", re.IGNORECASE)
+VIDEO_PATTERN = re.compile(r"^[A-Z]+\d+[_-]V\d+$", re.IGNORECASE)
 SUPPORTED_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp"})
 
 

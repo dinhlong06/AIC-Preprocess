@@ -21,9 +21,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 IMAGE_NAME="ai26-siglip"
 FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1/pipeline_g}"
-OUTPUT_DIR="$SCRIPT_DIR/artifacts/siglip_batch1"
+OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/artifacts/siglip_batch1}"
 CACHE_DIR="${CACHE_DIR:-$SCRIPT_DIR/.model_cache/huggingface}"
-SHARDS_DIR="$SCRIPT_DIR/.shard_frames_batch1"
+SHARDS_DIR="${SHARDS_DIR:-$SCRIPT_DIR/.shard_frames_batch1}"
 NSHARDS="${NSHARDS:-4}"
 mkdir -p "$OUTPUT_DIR" "$CACHE_DIR"
 
@@ -44,8 +44,10 @@ if [[ ${#GPUS[@]} -lt $NSHARDS ]]; then
     NSHARDS=${#GPUS[@]}
 fi
 
-mapfile -t VIDEOS < <(find "$FRAMES_DIR" -mindepth 1 -maxdepth 1 -type d \
-    -regextype posix-extended -regex '.*/[A-Za-z]+[0-9]+_V[0-9]+' -printf '%f\n' | sort)
+# Chỉ lấy video layer_2 đã ghi xong (có statistics.json), để chạy được nhiều vòng song
+# song với layer_2; video đã có .npy thì siglip-dataset tự bỏ qua.
+mapfile -t VIDEOS < <(find "$FRAMES_DIR" -mindepth 2 -maxdepth 2 -name statistics.json -printf '%h\n' \
+    | xargs -rn1 basename | grep -E '^[A-Za-z]+[0-9]+[_-]V[0-9]+$' | sort)
 if [[ ${#VIDEOS[@]} -eq 0 ]]; then
     echo "TỪ CHỐI: không tìm thấy thư mục video nào dưới $FRAMES_DIR"
     exit 1
