@@ -68,3 +68,45 @@ def test_similarity_only_would_select_nothing_without_ceiling():
     )
     assert selected_indices == []
     assert forced_indices == set()
+
+
+def test_protected_frame_survives_identical_embedding():
+    """
+    Frame mà vùng text đổi có whole-frame embedding gần như trùng khớp keyframe
+    trước (chỉ khác cái banner chữ) — similarity check luôn loại. protected phải
+    miễn nó khỏi check đó.
+    """
+    filt = SemanticFilter(similarity_threshold=0.90, min_frame_distance=5)
+    same_vec = np.array([1.0, 0.0], dtype=np.float32)
+    frame_indices = [50, 100, 150]
+    embeddings = np.stack([same_vec.copy() for _ in frame_indices])
+
+    selected, _, forced = filt.filter(
+        frame_indices,
+        embeddings,
+        history_embeddings=[same_vec.copy()],
+        last_keyframe_idx=0,
+        protected={100},
+    )
+
+    assert selected == [100]
+    # Không phải force-pick của coverage ceiling — caller phân biệt hai nhóm này.
+    assert forced == set()
+
+
+def test_protected_frame_still_obeys_min_frame_distance():
+    """Miễn similarity check KHÔNG có nghĩa là được sinh keyframe sát nhau."""
+    filt = SemanticFilter(similarity_threshold=0.90, min_frame_distance=5)
+    same_vec = np.array([1.0, 0.0], dtype=np.float32)
+    frame_indices = [100, 102]
+    embeddings = np.stack([same_vec.copy() for _ in frame_indices])
+
+    selected, _, _ = filt.filter(
+        frame_indices,
+        embeddings,
+        history_embeddings=[same_vec.copy()],
+        last_keyframe_idx=0,
+        protected={100, 102},
+    )
+
+    assert selected == [100]

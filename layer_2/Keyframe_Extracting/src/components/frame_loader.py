@@ -10,6 +10,9 @@ Trả về list (frame_idx, numpy_array BGR).
 
 from __future__ import annotations
 
+import json
+from concurrent.futures import ThreadPoolExecutor
+
 import cv2
 import numpy as np
 from pathlib import Path
@@ -27,6 +30,8 @@ class VideoFrameLoader:
     Sử dụng OpenCV VideoCapture. Hiệu quả nhất khi đọc tuần tự,
     nhưng cũng hỗ trợ random access qua cv2.CAP_PROP_POS_FRAMES.
     """
+
+    frame_step = 1
 
     def __init__(self, video_path: Path):
         """
@@ -126,6 +131,52 @@ class VideoFrameLoader:
 
     def __exit__(self, *args) -> None:
         self.close()
+
+
+class KeyframeDirLoader:
+    """
+    Đọc keyframe BTC cắt sẵn (kf_batch2/<video_id>/frame_XXX.webp + metadata.json) thay
+    cho video: cùng interface VideoFrameLoader nhưng frame_idx lấy từ trường "id" nên
+    chỉ trả về các frame BTC đã cắt (cách nhau >= 5 frame).
+    """
+
+    # BTC cắt tối thiểu mỗi 5 frame: knob tính theo "mỗi N frame lấy mẫu" phải chia cho số này.
+    frame_step = 5
+
+    def __init__(self, video_dir: Path):
+        self.video_dir = Path(video_dir)
+        # Không phải thư mục video nào BTC cũng kèm metadata.json riêng; file gộp ở gốc
+        # (~150 MB) thì luôn đủ nhưng nạp chậm nên chỉ dùng khi thiếu.
+        own = self.video_dir / "metadata.json"
+        meta = json.loads((own if own.exists() else self.video_dir.parent / "metadata.json").read_text(encoding="utf-8"))
+        frames = meta[self.video_dir.name]
+        self._files = {f["id"]: name for name, f in frames.items()}
+        self.fps = next(iter(frames.values()))["fps"]
+
+    def read_range(self, start_frame: int, end_frame: int) -> List[FrameTuple]:
+        indices = sorted(i for i in self._files if start_frame <= i <= end_frame)
+        return [
+            (idx, img)
+            for idx, img in zip(indices, self._decode.map(lambda i: cv2.imdecode(
+                np.frombuffer(self._blobs[i].result(), np.uint8), cv2.IMREAD_COLOR), indices))
+            if img is not None
+        ]
+
+    def __enter__(self) -> "KeyframeDirLoader":
+        # NAS nghẽn ở độ trễ (~6 file/s tuần tự, 128 luồng ~60 file/s): đặt đọc CẢ video
+        # ngay từ đầu để I/O chạy chồng lên phần tính của các cửa sổ trước. Chỉ giữ bytes
+        # nén (~450 MB/video), decode lúc cần.
+        self._io = ThreadPoolExecutor(128)
+        self._decode = ThreadPoolExecutor(4)
+        self._blobs = {
+            i: self._io.submit((self.video_dir / f"{name}.webp").read_bytes)
+            for i, name in sorted(self._files.items())
+        }
+        return self
+
+    def __exit__(self, *args) -> None:
+        self._io.shutdown(cancel_futures=True)
+        self._decode.shutdown()
 
 
 class ImageDirFrameLoader:

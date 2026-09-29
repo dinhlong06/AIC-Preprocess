@@ -7,6 +7,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 python3 "$SCRIPT_DIR/cpu_map_transcript.py" \
-    --shots_path "$SCRIPT_DIR/../../layer_1/batch1/shots.jsonl" \
-    --whisper_path "$SCRIPT_DIR/../../layer_1/batch1/whisper.jsonl" \
-    --output_path "$SCRIPT_DIR/shot_transcripts_batch1.jsonl"
+    --shots_path "${L1_DIR:-$SCRIPT_DIR/../../layer_1/batch1}/shots.jsonl" \
+    --whisper_path "${L1_DIR:-$SCRIPT_DIR/../../layer_1/batch1}/whisper.jsonl" \
+    --output_path "${OUT:-$SCRIPT_DIR/shot_transcripts_batch1.jsonl}"

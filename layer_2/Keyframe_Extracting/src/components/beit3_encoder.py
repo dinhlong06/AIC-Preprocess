@@ -113,7 +113,8 @@ class BEiT3Encoder:
         if unexpected:
             print(f"[BEiT3Encoder] Unexpected keys: {len(unexpected)}")
 
-        self._model.eval().to(self.device)
+        # fp16: VRAM ~một nửa để nhét thêm shard vào các GPU dùng chung chỉ còn 2-3 GB trống.
+        self._model.eval().half().to(self.device)
         print(f"[BEiT3Encoder] Loaded model on {self.device}")
 
     def unload(self) -> None:
@@ -163,14 +164,14 @@ class BEiT3Encoder:
                 if nxt_lo < n:
                     next_batch = prefetch.submit(_prep_range, nxt_lo, nxt_hi)
 
-                batch = torch.stack(tensors).to(self.device)
+                batch = torch.stack(tensors).to(self.device).half()
                 out = self._model.beit3(
                     textual_tokens=None,
                     visual_tokens=batch,
                     text_padding_position=None,
                 )
                 # Lấy CLS token (vị trí 0 trong encoder output)
-                cls_emb = out["encoder_out"][:, 0, :]       # (B, 1024)
+                cls_emb = out["encoder_out"][:, 0, :].float()  # (B, 1024)
                 cls_emb = F.normalize(cls_emb, dim=-1)      # L2 normalize
                 all_embeddings.append(cls_emb.cpu().float().numpy())
 

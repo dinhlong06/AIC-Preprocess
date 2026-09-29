@@ -79,6 +79,7 @@ class SemanticFilter:
         embeddings: np.ndarray,
         history_embeddings: Optional[List[np.ndarray]] = None,
         last_keyframe_idx: Optional[int] = None,
+        protected: Optional[set] = None,
     ) -> Tuple[List[int], np.ndarray, set]:
         """
         Duyệt tuần tự và loại bỏ frame quá giống với keyframe trước / keyframe đã chọn.
@@ -88,6 +89,10 @@ class SemanticFilter:
             embeddings          : numpy array shape (N, D), L2-normalized.
             history_embeddings  : Danh sách embedding của các keyframe đã chọn từ các shot trước đó trong video.
             last_keyframe_idx   : Frame_idx của keyframe được chọn gần đây nhất (từ shot trước).
+            protected           : Frame_idx được miễn similarity check (vẫn chịu
+                                  min_frame_distance). Dùng cho frame mà vùng text đổi:
+                                  whole-frame cosine của chúng ~0.98 nên similarity
+                                  check luôn loại, dù nội dung chữ đã khác hẳn.
 
         Returns:
             Tuple (selected_indices, selected_embeddings, forced_indices).
@@ -142,7 +147,10 @@ class SemanticFilter:
             emb = embeddings[i]
             check_pool = list(ring) + selected_embeddings
 
-            if check_pool:
+            if protected and curr_idx in protected:
+                max_sim = -1.0
+                is_different = True
+            elif check_pool:
                 # Batched matmul: (K, D) @ (D,) → (K,)
                 pool_mat = np.stack(check_pool)  # (K, D)
                 sims = pool_mat @ emb            # (K,)

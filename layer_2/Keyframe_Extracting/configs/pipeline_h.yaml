@@ -1,0 +1,59 @@
+# Pipeline H — Pipeline G + Text-Aware Keyframe Protection
+# Flow: DAKE → Transition Peaks → Text Pre-scan → Blank Veto → BEiT-3
+#       → Global Semantic Filter → Score-Aware Diversity NMS → Local Sharpness
+#
+# Khác pipeline_g duy nhất ở khối text_prescan: frame mà vùng text vừa xuất hiện
+# hoặc vừa đổi nội dung được miễn Semantic Filter và đi vòng Diversity Filter
+# (giống hệt đường force-pick của coverage ceiling). DAKE chấm theo steepness của
+# kích thước frame nén — mù với "có chữ" — nên pipeline_g bỏ sót keyframe chứa text.
+#
+# Mọi tham số còn lại giữ nguyên của pipeline_g v3.1 để A/B đọc được: chênh lệch
+# keyframe giữa g và h chỉ đến từ text_prescan.
+
+keyframe:
+  pipeline: pipeline_h
+
+  min_frame_distance: 5      # Khoảng cách tối thiểu 5 frame giữa 2 keyframe liên tiếp
+
+  beit3:
+    checkpoint_path: checkpoint/beit-3/beit3_large_patch16_224.pth
+    spm_path: checkpoint/beit-3/beit3.spm
+    device: cuda
+    batch_size: 32
+
+  dake:
+    candidate_ratio: 0.10    # 10%: keyframe BTC đã thưa (~0,7s/frame), 5% chỉ ~1 ứng viên/14s
+    window_size: 3
+
+  semantic:
+    # Frame bị loại khi cosine similarity với keyframe đã giữ >= ngưỡng này.
+    similarity_threshold: 0.93
+    max_history_size: 512    # Bounded ring buffer — prevents O(N) memory growth in long videos
+    gap_decay_start_frames: 150   # Bắt đầu nới threshold (tối đa +0.05) sau N frame không có keyframe
+    max_gap_frames: 300           # Ép chọn keyframe khác biệt nhất nếu vượt N frame (coverage ceiling)
+
+  diversity:
+    redundancy_threshold: 0.91     # Pairwise cosine NMS threshold
+    min_keyframes_per_shot: 1      # Sàn mềm; NMS luôn giữ >= 1 nên chỉ có tác dụng khi >= 2
+
+  transition:
+    enabled: true
+    peak_percentile: 90.0          # Base percentile threshold for steepness peaks
+    prominence_window: 3           # Peak must be max within [i-3, i+3] window
+
+  veto:
+    enabled: true
+    min_brightness: 15.0    # Dưới ngưỡng này (mean pixel) coi là tối
+    max_brightness: 240.0   # Trên ngưỡng này (mean pixel) coi là sáng/trắng (white flash cut)
+    min_variance: 15.0      # Dưới ngưỡng này (Laplacian variance) coi là phẳng, không chi tiết
+
+  sharpness:
+    enabled: true
+    window_radius: 4        # Xét ±4 frame lân cận để tráo sang frame nét hơn
+
+  text_prescan:
+    enabled: true
+    stride_seconds: 1.0        # Text bản tin (banner, chân chạy, tên nhân vật) sống vài giây
+    band_ratio: 2.0            # Dải top/bottom có edge energy >= 2x giữa khung thì coi là có text
+    change_threshold: 8        # Hamming distance (0-64) trên dHash của dải text
+    min_gap_seconds: 2.0       # Chặn ticker đổi liên tục sinh 1 keyframe mỗi giây

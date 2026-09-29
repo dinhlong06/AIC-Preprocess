@@ -3,6 +3,8 @@ import json
 import os
 from typing import Dict, List
 
+GAP_TOLERANCE_MS = 500
+
 
 def run_shot_transcript_mapping(
     shots_jsonl_path: str,
@@ -48,6 +50,13 @@ def run_shot_transcript_mapping(
             overlapping_texts = [
                 seg["text"] for seg in segs
                 if seg["start_ms"] <= shot_end and seg["end_ms"] >= shot_start
+            ]
+            # Shot rơi vào khe lặng ngắn giữa 2 câu (VAD cắt sớm, cảnh cắt trễ vài trăm
+            # ms) vẫn thuộc về câu kề đó; chỉ nới khi không có gì chồng lấn để shot
+            # đã có lời không bị trộn thêm câu bên cạnh.
+            overlapping_texts = overlapping_texts or [
+                seg["text"] for seg in segs
+                if seg["start_ms"] <= shot_end + GAP_TOLERANCE_MS and seg["end_ms"] >= shot_start - GAP_TOLERANCE_MS
             ]
             combined_text = " ".join(overlapping_texts).strip()
             if combined_text:

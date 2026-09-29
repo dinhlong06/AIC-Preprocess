@@ -92,7 +92,7 @@ if [[ "$MODE" == "host" ]]; then
 fi
 
 echo "[run.sh] Build image $IMAGE..."
-docker build -t "$IMAGE" "$SCRIPT_DIR"
+[[ -n "${SKIP_BUILD:-}" ]] || docker build -t "$IMAGE" "$SCRIPT_DIR"
 
 GT_VOL_MOUNT=()
 if [[ -d "$GT_DIR_HOST" ]]; then

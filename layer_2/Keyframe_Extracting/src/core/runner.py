@@ -180,6 +180,10 @@ class KeyframeBenchmarkRunner:
                     eval_threshold=eval_threshold,
                 )
             except Exception as exc:
+                # OOM là do GPU dùng chung bị job khác chiếm, không phải lỗi video: thoát để
+                # run.sh chọn GPU khác, thay vì đốt lượt thử (và bỏ vĩnh viễn) từng video.
+                if "out of memory" in str(exc):
+                    raise
                 n = _record_failure(pipeline_out, video_path.stem)
                 print(f"[Runner] LỖI {video_path.name} (lần {n}/{_MAX_VIDEO_RETRIES}): {type(exc).__name__}: {exc}")
                 continue
@@ -349,6 +353,10 @@ class KeyframeBenchmarkRunner:
         # Tìm file tồn tại đầu tiên
         shot_file = next((p for p in candidates if p.exists()), None)
 
+        # Thư mục keyframe BTC không chunk được (cv2 không mở được thư mục -> 1 chunk rỗng
+        # -> 0 keyframe mà vẫn ghi statistics.json như đã xong): thiếu shots là lỗi.
+        if shot_file is None and video_path.is_dir():
+            raise FileNotFoundError(f"Không có shots cho {video_stem} trong {shots_dir}")
         if shot_file is None:
             print(f"[Runner] No shots file found for {video_stem}. Chunking full video to prevent RAM OOM.")
             return self._chunk_video(video_stem, video_path)
@@ -417,6 +425,8 @@ class KeyframeBenchmarkRunner:
 
     def _can_decode(self, video_path: Path) -> bool:
         """Đọc thử frame đầu để phát hiện sớm codec không hỗ trợ (vd AV1), tránh loop hết mọi shot rồi mới lộ ra rỗng."""
+        if video_path.is_dir():
+            return True
         cap = cv2.VideoCapture(str(video_path))
         ret, _ = cap.read()
         cap.release()

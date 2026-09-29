@@ -24,9 +24,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 PIPELINE="${PIPELINE:-pipeline_g}"
 NSHARDS="${NSHARDS:-3}"
 
-export VIDEO_DIR="$PROJECT_ROOT/dataset_batch1/videos/video"
-export SHOTS_SRC="$PROJECT_ROOT/layer_1/batch1/shots.jsonl"
-export SHOTS_SPLIT_DIR="$SCRIPT_DIR/dataset/shots_batch1"
+export VIDEO_DIR="${VIDEO_DIR:-$PROJECT_ROOT/dataset_batch1/videos/video}"
+export SHOTS_SRC="${SHOTS_SRC:-$PROJECT_ROOT/layer_1/batch1/shots.jsonl}"
+export SHOTS_SPLIT_DIR="${SHOTS_SPLIT_DIR:-$SCRIPT_DIR/dataset/shots_batch1}"
 export OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/benchmark_batch1}"
 CLAIMS="$OUTPUT_DIR/claims_$PIPELINE"
 
@@ -118,9 +118,9 @@ if [[ "${1:-}" == "watchdog" ]]; then
             [[ -z "$container" ]] && continue
             age=$(( $(date +%s) - $(stat -c %Y "$log") ))
             (( age < TIMEOUT )) && continue
-            video="$(grep -o 'Processing [^ ]*\.mp4' "$log" | tail -1 | awk '{print $2}')"
+            video="$(grep -oE 'Processing [^ ]*\.(mp4|mov)' "$log" | tail -1 | awk '{print $2}')"
             [[ -z "$video" ]] && continue
-            video_id="${video%.mp4}"
+            video_id="${video%.*}"
             [[ -f "$OUTPUT_DIR/$PIPELINE/$video_id/statistics.json" ]] && continue
             echo "watchdog: shard $shard kẹt ${age}s ở $video -> dừng, đánh lỗi vĩnh viễn, bật lại"
             "$0" stop "$shard"
@@ -152,7 +152,8 @@ PYEOF
 
 # Video thiếu file shots sẽ bị _load_shots âm thầm chunk 300 frame với shot_id
 # "S0001" (mất prefix video) -> keyframe trông bình thường nhưng sai định danh.
-n_video=$(cd "$VIDEO_DIR" && ls *.mp4 | wc -l)
+# Thư mục con = một video keyframe BTC cắt sẵn (kf_batch2), xem cli.py.
+n_video=$(find "$VIDEO_DIR" -mindepth 1 -maxdepth 1 \( -name '*.mp4' -o -name '*.mov' -o -type d \) | wc -l)
 n_shots=$(ls "$SHOTS_SPLIT_DIR" | wc -l)
 if [[ "$n_shots" -lt "$n_video" ]]; then
     echo "TỪ CHỐI: mới có shots cho $n_shots/$n_video video."

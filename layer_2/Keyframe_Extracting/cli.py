@@ -160,6 +160,49 @@ def build_pipeline_g(cfg: dict, args: argparse.Namespace):
     )
 
 
+def build_pipeline_h(cfg: dict, args: argparse.Namespace):
+    """Khởi tạo PipelineH (pipeline_g + text-awareness) từ config + CLI args."""
+    from src.extractors.pipeline_h import PipelineH
+    beit3_cfg = cfg.get("beit3", {})
+    dake_cfg = cfg.get("dake", {})
+    semantic_cfg = cfg.get("semantic", {})
+    diversity_cfg = cfg.get("diversity", {})
+    transition_cfg = cfg.get("transition", {})
+    veto_cfg = cfg.get("veto", {})
+    sharpness_cfg = cfg.get("sharpness", {})
+    text_cfg = cfg.get("text_prescan", {})
+    min_dist = getattr(args, "min_frame_distance", None) or cfg.get("min_frame_distance", 5)
+    return PipelineH(
+        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
+        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
+        candidate_ratio=args.candidate_ratio or dake_cfg.get("candidate_ratio", 0.05),
+        window_size=dake_cfg.get("window_size", 3),
+        min_frame_distance=min_dist,
+        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
+        redundancy_threshold=getattr(args, "redundancy_threshold", None) or diversity_cfg.get("redundancy_threshold", 0.88),
+        peak_prominence_window=transition_cfg.get("prominence_window", 3),
+        peak_percentile=transition_cfg.get("peak_percentile", 90.0),
+        min_keyframes_per_shot=diversity_cfg.get("min_keyframes_per_shot", 1),
+        enable_transition=transition_cfg.get("enabled", True),
+        max_history_size=semantic_cfg.get("max_history_size", 512),
+        gap_decay_start_frames=semantic_cfg.get("gap_decay_start_frames", 150),
+        max_gap_frames=semantic_cfg.get("max_gap_frames", 300),
+        enable_veto=veto_cfg.get("enabled", True),
+        veto_min_brightness=veto_cfg.get("min_brightness", 15.0),
+        veto_max_brightness=veto_cfg.get("max_brightness", 240.0),
+        veto_min_variance=veto_cfg.get("min_variance", 15.0),
+        enable_sharpness=sharpness_cfg.get("enabled", True),
+        sharpness_window_radius=sharpness_cfg.get("window_radius", 4),
+        enable_text_prescan=text_cfg.get("enabled", True),
+        text_stride_seconds=text_cfg.get("stride_seconds", 1.0),
+        text_band_ratio=text_cfg.get("band_ratio", 2.0),
+        text_change_threshold=text_cfg.get("change_threshold", 8),
+        text_min_gap_seconds=text_cfg.get("min_gap_seconds", 2.0),
+        device=args.device or beit3_cfg.get("device"),
+        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
+    )
+
+
 _PIPELINE_BUILDERS = {
     "pipeline_a": (build_pipeline_a, "configs/pipeline_a.yaml"),
     "pipeline_b": (build_pipeline_b, "configs/pipeline_b.yaml"),
@@ -168,6 +211,7 @@ _PIPELINE_BUILDERS = {
     "pipeline_e": (build_pipeline_e, "configs/pipeline_e.yaml"),
     "pipeline_f": (build_pipeline_f, "configs/pipeline_f.yaml"),
     "pipeline_g": (build_pipeline_g, "configs/pipeline_g.yaml"),
+    "pipeline_h": (build_pipeline_h, "configs/pipeline_h.yaml"),
 }
 
 
@@ -193,7 +237,7 @@ Ví dụ:
         "--pipeline",
         type=str,
         default="pipeline_g",
-        choices=["pipeline_a", "pipeline_b", "pipeline_c", "pipeline_d", "pipeline_e", "pipeline_f", "pipeline_g", "all"],
+        choices=["pipeline_a", "pipeline_b", "pipeline_c", "pipeline_d", "pipeline_e", "pipeline_f", "pipeline_g", "pipeline_h", "all"],
         help="Pipeline để chạy. 'all' sẽ chạy toàn bộ pipeline lần lượt.",
     )
     parser.add_argument(
@@ -283,12 +327,17 @@ Ví dụ:
         print(f"[CLI] ERROR: video_dir không tồn tại: {video_dir}")
         sys.exit(1)
 
-    video_paths = sorted(video_dir.rglob("*.mp4"))
+    # kf_batch2 (keyframe BTC cắt sẵn) có metadata.json ở gốc: mỗi thư mục con là một
+    # "video". Không rglob ở đây: ~1 triệu file webp trên NFS.
+    if (video_dir / "metadata.json").exists():
+        video_paths = sorted(p for p in video_dir.iterdir() if p.is_dir())
+    else:
+        video_paths = sorted(p for ext in ("*.mp4", "*.mov") for p in video_dir.rglob(ext))
     if args.videos:
         wanted = set(args.videos.split(","))
-        video_paths = [p for p in video_paths if p.name in wanted]
+        video_paths = [p for p in video_paths if p.name in wanted or p.stem in wanted]
     if not video_paths:
-        print(f"[CLI] ERROR: Không tìm thấy .mp4 trong {video_dir}")
+        print(f"[CLI] ERROR: Không tìm thấy .mp4/.mov trong {video_dir}")
         sys.exit(1)
 
     print(f"[CLI] Found {len(video_paths)} video(s) in {video_dir}")
