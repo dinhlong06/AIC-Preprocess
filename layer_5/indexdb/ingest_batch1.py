@@ -2,9 +2,9 @@
 
     python -m indexdb.ingest_batch1 --root /path/dataset_batch1 \\
         --keyframes-dir /path/pipeline_g \\
-        [--ocr layer_3/OCR/output_batch1/output_vietocr.json] \\
+        [--ocr layer_3/OCR_gemma/gemma_ocr_batch1.jsonl] \\
+        [--captions 'layer_3/OCR_gemma/*_caption_batch1.jsonl'] \\
         [--ocr-api layer_3/OCR/output_batch1_v2/output_vlm_corrected.json] \\
-        [--objects layer_3/ObjectDetection/output_batch1/detections.json] \\
         --siglip2-dir recap_siglip/artifacts/siglip_batch1 \\
         [--videos L21_V001 ...]
 
@@ -13,6 +13,7 @@ Nguồn embedding: SigLIP2 SO400M (1152d) từ recap_siglip/artifacts/siglip_bat
 frame_id = keyframe_id = SigLIP2 embedding ID (L21_V001_000000_kf0001).
 """
 import argparse
+import glob
 import bisect
 import json
 import os
@@ -109,6 +110,15 @@ def _load_ocr(path):
                 for r in json.load(f)}
 
 
+def _load_gemma(path):
+    # Giữ nguyên dấu (khác _load_ocr): Gemma đọc đúng dấu, và vi_analyzer đã asciifolding
+    # ở cả index lẫn query nên tìm không dấu vẫn khớp.
+    if not path:
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return {r["frame_id"]: r["text"] for r in map(json.loads, f) if r["text"]}
+
+
 def _purge(video_id, store, es):
     store.frames.delete_many({"video_id": video_id})
     store.shots.delete_many({"video_id": video_id})
@@ -135,7 +145,10 @@ def main():
     ap.add_argument("--root", required=True, help="thư mục dataset_batch1")
     ap.add_argument("--keyframes-dir", required=True,
                     help="thư mục pipeline_g chứa {video_id}/keyframes.jsonl")
-    ap.add_argument("--ocr", help="đường dẫn output_vietocr.json")
+    ap.add_argument("--ocr", nargs="*", default=[],
+                    help="OCR Gemma, jsonl (nhận glob) của layer_3/OCR_gemma/gemma_ocr.py --task ocr")
+    ap.add_argument("--captions", nargs="*", default=[],
+                    help="caption, jsonl của layer_3/OCR_gemma/gemma_ocr.py --task caption (UIT + AI Studio chia nhau)")
     ap.add_argument("--ocr-api", help="đường dẫn output đã hiệu đính (vd output_vlm_corrected.json)")
     ap.add_argument("--objects", help="đường dẫn detections.json")
     ap.add_argument("--siglip2-dir", required=True,
@@ -145,6 +158,7 @@ def main():
     ap.add_argument("--transcripts", default=DEFAULT_TRANSCRIPTS_PATH,
                     help="shot_transcripts_batch1.jsonl")
     ap.add_argument("--videos", nargs="*")
+    ap.add_argument("--batch", default="batch1")
     mode = ap.add_mutually_exclusive_group()
     mode.add_argument("--resume", action="store_true", help="bỏ qua video đã nạp xong")
     mode.add_argument("--purge", action="store_true",
@@ -156,7 +170,11 @@ def main():
         d for d in os.listdir(args.keyframes_dir)
         if os.path.isdir(os.path.join(args.keyframes_dir, d)) and not d.startswith("_")
     )
-    ocr = _load_ocr(args.ocr)
+    # Giữ cả text rỗng: Gemma thấy frame không có chữ thì phải ghi đè OCR Paddle rác còn sót.
+    # "_" -> cách: overlay camera N095 ghi "NGUYEN_VAN_CU_NGUYEN_TRAI", tokenizer giữ nguyên thành 1 từ.
+    ocr = {r["frame_id"]: r["text"].replace("_", " ") for pat in args.ocr for path in sorted(glob.glob(pat))
+           for r in map(json.loads, open(path, encoding="utf-8"))}
+    captions = {k: v for pat in args.captions for path in sorted(glob.glob(pat)) for k, v in _load_gemma(path).items()}
     ocr_api = _load_ocr(args.ocr_api)
     objects_by_frame = _load_objects(args.objects)
     shots_by_video = _group_by_video(args.shots)
@@ -192,13 +210,18 @@ def main():
             writer.upsert_frame({
                 "keyframe_id": keyframe_id, "video_id": video_id, "shot_id": shot_id,
                 "frame_idx": kf["frame_idx"], "timestamp_ms": kf["timestamp_ms"],
-                "image_path": kf.get("image_path", ""), "batch": "batch1",
+                # Tương đối với gốc repo (/data): backend thử gốc repo trước, nên batch2 (output_batch2/...)
+                # tìm được ảnh mà không phải thêm gốc mới vào PIPELINE_G_ROOT.
+                "image_path": os.path.relpath(os.path.join(kf_dir, kf["image_path"]), _DATA_ROOT),
+                "batch": args.batch,
             })
             objects = objects_by_frame.get(keyframe_id)
-            ocr_text = ocr.get(keyframe_id)
+            # Video N* (camera giao thông batch2) chỉ OCR frame đầu, lưu theo video_id: chép sang mọi keyframe.
+            ocr_text = ocr.get(keyframe_id, ocr.get(video_id))
             ocr_api_text = ocr_api.get(keyframe_id)
-            if objects or ocr_text or ocr_api_text or shot_id:
-                writer.enrich_frame(keyframe_id, objects=objects, ocr_text=ocr_text,
+            caption = captions.get(keyframe_id)
+            if objects or ocr_text is not None or ocr_api_text or caption or shot_id:
+                writer.enrich_frame(keyframe_id, objects=objects, ocr_text=ocr_text, caption=caption,
                                     ocr_api=ocr_api_text, shot_id=shot_id or None)
 
         for shot in shots_by_video.get(video_id, []):
@@ -206,7 +229,7 @@ def main():
 
         media_info_path = os.path.join(args.root, "media-info", f"{video_id}.json")
         fps = _derive_fps(keyframes)
-        video_doc = {"_id": video_id, "fps": fps, "batch": "batch1"}
+        video_doc = {"_id": video_id, "fps": fps, "batch": args.batch}
         if os.path.exists(media_info_path):
             with open(media_info_path, encoding="utf-8") as f:
                 video_doc["media_info"] = json.load(f)

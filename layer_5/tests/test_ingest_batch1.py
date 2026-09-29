@@ -1,6 +1,6 @@
 import json
 
-from indexdb.ingest_batch1 import _load_ocr
+from indexdb.ingest_batch1 import _load_gemma, _load_ocr
 
 
 def test_load_ocr_removes_vietnamese_diacritics(tmp_path):
@@ -14,3 +14,13 @@ def test_load_ocr_removes_vietnamese_diacritics(tmp_path):
     }]), encoding="utf-8")
 
     assert _load_ocr(path) == {"L22_V006_000000_kf0001": "Dong ho: 18 gio"}
+
+
+def test_load_gemma_keeps_diacritics_and_skips_empty(tmp_path):
+    path = tmp_path / "gemma.jsonl"
+    path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in [
+        {"frame_id": "L22_V006_000000_kf0001", "text": "Đồng hồ: 18 giờ"},
+        {"frame_id": "L22_V006_000001_kf0001", "text": ""},
+    ]), encoding="utf-8")
+
+    assert _load_gemma(path) == {"L22_V006_000000_kf0001": "Đồng hồ: 18 giờ"}

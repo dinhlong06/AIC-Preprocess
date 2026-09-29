@@ -33,7 +33,9 @@ MAPPING = {
             "shot_id":      {"type": "keyword"},
             "frame_idx":    {"type": "long"},
             "timestamp_ms": {"type": "long"},
-            "ocr_text":    {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all"},
+            # ocr_text.exact giữ dấu: OCR Gemma đọc đúng dấu, search_ocr cộng điểm frame khớp đúng dấu.
+            "ocr_text":    {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all",
+                            "fields": {"exact": {"type": "text", "analyzer": "vi_analyzer_strict"}}},
             # OCR có 2 nguồn: PaddleOCR gốc (ocr_text) và bản đã hiệu đính qua
             # NVIDIA API ở stage 2 layer_3/OCR (ocr_api) — giữ riêng để A/B.
             "ocr_api":     {"type": "text", "analyzer": "vi_analyzer", "copy_to": "content_all"},

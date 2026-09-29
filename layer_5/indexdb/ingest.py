@@ -38,6 +38,9 @@ def _load_ocr(path):
 
 
 def _load_objects(path):
+    # Layer 3b (object detection) đã bị bỏ, không còn detections.json nào được sinh ra.
+    if not os.path.exists(path):
+        return {}
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     out = {}

@@ -1,4 +1,6 @@
 import os
+import unicodedata
+
 from indexdb.config import Config
 from indexdb.elastic import ElasticStore
 from indexdb.milvus import MilvusStore
@@ -85,12 +87,19 @@ class Reader:
         # khác hẳn, không phải lỗi OCR). must=OR trần ở đây MẤT PHÒNG THỦ càng nặng hơn
         # elastic.py (chỉ cần 1 token khớp fuzzy nhầm là đã vào candidate). Xem docstring
         # search_ocr ở elastic.py cho bằng chứng đo trên ES sống.
+        # ocr_text.exact giữ dấu (OCR Gemma đọc đúng dấu): câu gõ có dấu thì frame khớp
+        # đúng dấu được cộng thêm, câu không dấu thì không thêm (khỏi thưởng nhầm frame
+        # OCR thiếu dấu). Cùng ý với backend/core/stores/elastic.py::search_ocr.
+        has_marks = any(unicodedata.combining(c) for c in unicodedata.normalize("NFD", query)) \
+            or "đ" in query.lower()
         es_query = {"bool": {
-            "must": [{"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"], "fuzziness": 1}}],
+            "must": [{"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"], "fuzziness": 1, "max_expansions": 10}}],
             "should": [{"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"],
-                                         "minimum_should_match": "2<75%", "fuzziness": 1, "boost": 5}},
+                                         "minimum_should_match": "2<75%", "fuzziness": 1, "max_expansions": 10, "boost": 5}},
                        {"multi_match": {"query": query, "fields": ["ocr_text", "ocr_api"],
-                                         "minimum_should_match": "2<75%", "boost": 3}}],
+                                         "minimum_should_match": "2<75%", "boost": 3}}]
+                      + ([{"match": {"ocr_text.exact": {"query": query, "operator": "and", "boost": 3}}}]
+                         if has_marks else []),
         }}
         return self._search(es_query, top_k, video_ids, frame_ids)
 

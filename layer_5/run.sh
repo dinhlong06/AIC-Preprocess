@@ -10,12 +10,13 @@
 #   ./run.sh init                      # tạo index/collection rỗng (1 lần, sau reset)
 #   ./run.sh ingest [cờ...]            # nạp batch2 (layer_1/2/3), cờ truyền thẳng cho indexdb.ingest:
 #         ./run.sh ingest --resume                     # chỉ video mới
-#         ./run.sh ingest                              # cập nhật OCR/object/caption
+#         ./run.sh ingest                              # cập nhật OCR/caption
 #         ./run.sh ingest --purge --videos K01_V001    # layer_2 chạy lại
 #   ./run.sh ingest-batch1 [cờ...]     # nạp dataset_batch1 (BTC) dùng keyframes.jsonl + SigLIP2 batch1,
-#                                      # cờ thêm truyền thẳng cho indexdb.ingest_batch1 (--keyframes-dir/--ocr/--objects/--siglip2-dir ghi đè được):
+#                                      # cờ thêm truyền thẳng cho indexdb.ingest_batch1 (--keyframes-dir/--ocr/--siglip2-dir ghi đè được):
 #         ./run.sh ingest-batch1 --videos L21_V001      # 1 video
 #         ./run.sh ingest-batch1                        # toàn bộ dataset_batch1
+#   ./run.sh ingest-batch2 [cờ...]     # nạp output_batch2 (run_batch2.sh): Gemma OCR + SigLIP2, cùng code ingest_batch1
 #   ./run.sh shell                     # python REPL đã nối sẵn 3 DB
 #
 # Mọi lệnh chạy code đều tự `docker build` trước, nên sửa code xong chạy được ngay.
@@ -102,9 +103,18 @@ ingest-batch1)
     shift
     py -m indexdb.ingest_batch1 --root /data/dataset_batch1 \
         --keyframes-dir /data/layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g \
-        --ocr /data/layer_3/OCR/output_batch1_v2/output_vietocr_merged.json \
-        --objects /data/layer_3/ObjectDetection/output_batch1/detections.json \
+        --ocr /data/layer_3/OCR_gemma/gemma_ocr_batch1.jsonl \
+        --captions '/data/layer_3/OCR_gemma/*_caption_batch1.jsonl' \
         --siglip2-dir /data/recap_siglip/artifacts/siglip_batch1_v2 "$@"
+    ;;
+ingest-batch2)
+    shift
+    py -m indexdb.ingest_batch1 --batch batch2 --root /data/output_batch2 \
+        --keyframes-dir /data/output_batch2/keyframes/pipeline_h \
+        --ocr '/data/output_batch2/gemma_ocr*.jsonl' \
+        --shots /data/output_batch2/shots.jsonl \
+        --transcripts /data/output_batch2/shot_transcripts.jsonl \
+        --siglip2-dir /data/output_batch2/siglip "$@"
     ;;
 shell)
     docker build -q -t "$IMAGE" . > /dev/null

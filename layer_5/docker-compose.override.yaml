@@ -40,6 +40,8 @@ services:
     # không cấp phát nổi shard nào, cluster đứng RED và mọi lệnh tạo index treo.
     environment:
       cluster.routing.allocation.disk.threshold_enabled: "false"
+      # 512MB -> trần max_clause_count thấp, câu OCR dài + fuzzy bị 400 "too many clauses".
+      ES_JAVA_OPTS: "-Xms2g -Xmx2g"
       # File gốc chỉ mở CORS cho http://localhost:8081, mà elasticvue đã dời sang
       # 8084 -> trình duyệt bị chặn. Elasticvue gọi ES TỪ TRÌNH DUYỆT nên origin
       # đổi theo cách bạn mở UI (localhost qua ssh-forward, hay IP server) -> mở hết.
