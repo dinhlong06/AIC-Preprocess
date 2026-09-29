@@ -14,7 +14,7 @@ class FakeModel:
 def test_one_call_per_segment(monkeypatch):
     fake = FakeModel()
     monkeypatch.setattr(m, "_load_chunkformer_model", lambda name: fake)
-    recognize = m._build_chunkformer("fake-model", None)
+    recognize = m._build_chunkformer("fake-model")
     chunks = [
         {"array": np.zeros(16000, dtype=np.float32), "sampling_rate": 16000},
         {"array": np.zeros(8000, dtype=np.float32), "sampling_rate": 16000},
@@ -28,7 +28,7 @@ def test_one_call_per_segment(monkeypatch):
 def test_temp_wav_is_removed(monkeypatch, tmp_path):
     fake = FakeModel()
     monkeypatch.setattr(m, "_load_chunkformer_model", lambda name: fake)
-    recognize = m._build_chunkformer("fake-model", None)
+    recognize = m._build_chunkformer("fake-model")
     recognize([{"array": np.zeros(16000, dtype=np.float32),
                 "sampling_rate": 16000}], batch_size=1)
     import os

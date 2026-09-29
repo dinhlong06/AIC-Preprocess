@@ -28,6 +28,8 @@ OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR}"
 CACHE_DIR="$SCRIPT_DIR/cache"
 # Thư mục claim dùng chung khi chạy nhiều shard (run_shards.sh đặt); rỗng = chạy đơn.
 CLAIMS_DIR="${CLAIMS_DIR:-}"
+# Backend ASR: chunkformer là đích đến, phowhisper chỉ còn để đối chiếu.
+ASR_BACKEND="${ASR_BACKEND:-chunkformer}"
 MOUNTS=()
 [[ -n "$CLAIMS_DIR" ]] && MOUNTS+=(-v "$CLAIMS_DIR:/data/claims")
 SHOT_THRESHOLD="0.5"   # ngưỡng ranh giới shot của TransNetV2, sửa ở đây nếu cần
@@ -66,4 +68,5 @@ docker run --rm \
     --vad_max_speech_duration_s "$VAD_MAX_SPEECH_DURATION_S" \
     --vad_min_silence_duration_ms "$VAD_MIN_SILENCE_DURATION_MS" \
     --vad_speech_pad_ms "$VAD_SPEECH_PAD_MS" \
+    --asr_backend "$ASR_BACKEND" \
     "$@"

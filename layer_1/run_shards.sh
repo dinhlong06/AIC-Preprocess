@@ -61,7 +61,9 @@ echo "== $STAGE: ${#VIDEOS[@]} video / $NSHARDS shard / GPU ${GPUS[*]} / đã gi
 for ((i = 0; i < NSHARDS; i++)); do
     out="$SHARD_ROOT/${STAGE}_$i"
     mkdir -p "$out"
+    # Backend ASR: mặc định chunkformer, truyền xuống cho khỏi phải set tay.
     OUTPUT_DIR="$out" GPU_ID="${GPUS[i]}" CLAIMS_DIR="$CLAIMS" \
+        ASR_BACKEND="${ASR_BACKEND:-chunkformer}" \
         "$SCRIPT_DIR/run_layer1.sh" \
             --claims_dir /data/claims \
             "$( [[ "$STAGE" == "shots" ]] && echo --skip_asr || echo --skip_shots )" \

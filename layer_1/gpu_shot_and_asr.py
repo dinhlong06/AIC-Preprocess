@@ -116,6 +116,16 @@ def _get_device() -> torch.device:
     return device
 
 
+def has_audio(video_path: str) -> bool:
+    """Video không có luồng audio thì ffmpeg -vn báo "Output file does not contain any stream"."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries", "stream=index",
+         "-of", "csv=p=0", video_path],
+        capture_output=True, text=True,
+    )
+    return bool(result.stdout.strip())
+
+
 def extract_audio_to_wav(video_path: str, wav_path: str) -> None:
     """Tách audio từ video sang wav mono 16kHz bằng ffmpeg.
 
@@ -275,14 +285,7 @@ def _chunkformer_text(result):
     return " ".join(_chunkformer_text(item) for item in result).strip()
 
 
-def _build_chunkformer(model_name, kenlm_path):
-    if kenlm_path:
-        if not os.path.exists(kenlm_path):
-            raise FileNotFoundError(f"Không tìm thấy file KenLM: {kenlm_path}")
-        print(f"Decode với KenLM: {kenlm_path}")
-    else:
-        print("Decode greedy — không có LM, phần sửa lỗi chính tả chưa bật.")
-
+def _build_chunkformer(model_name):
     model = _load_chunkformer_model(model_name)
     print(f"Model {model_name} đã load.")
 
@@ -307,7 +310,8 @@ def _build_chunkformer(model_name, kenlm_path):
                         audio_path=handle.name, chunk_size=64,
                         left_context_size=128, right_context_size=128,
                         total_batch_duration=1800, return_timestamps=False)
-                results.append({"text": _chunkformer_text(raw), "confidence": 0.0})
+                    text = _chunkformer_text(raw)
+                results.append({"text": text.strip(), "confidence": 0.0})
             finally:
                 if os.path.exists(handle.name):
                     os.remove(handle.name)
@@ -328,8 +332,7 @@ def run_asr(
     asr_batch_size: int = 8,
     claims_dir: Optional[str] = None,
     force: bool = False,
-    asr_backend: str = "phowhisper",
-    kenlm_path: Optional[str] = None,
+    asr_backend: str = "chunkformer",
 ) -> str:
     """
     Input:
@@ -347,7 +350,7 @@ def run_asr(
     from silero_vad import load_silero_vad, read_audio, get_speech_timestamps  # noqa: E501
     from transformers import pipeline  # import trễ để tránh load torch nếu --skip_asr
 
-    print(f"=== Layer 1: PhoWhisper ASR ({model_name}) + Silero VAD ===")
+    print(f"=== Layer 1: ASR {asr_backend} ({model_name}) + Silero VAD ===")
     device = _get_device()
     dtype = torch.float16 if device.type == "cuda" else torch.float32
     pipe_device = 0 if device.type == "cuda" else -1
@@ -356,7 +359,7 @@ def run_asr(
     print("Model Silero VAD đã load.")
 
     if asr_backend == "chunkformer":
-        asr_pipeline = _build_chunkformer(model_name, kenlm_path)
+        asr_pipeline = _build_chunkformer(model_name)
     else:
         asr_pipeline = pipeline(
             "automatic-speech-recognition",
@@ -380,11 +383,18 @@ def run_asr(
 
     total_segments_written = 0
 
-    for video_path in tqdm(video_paths, desc="PhoWhisper"):
+    for video_path in tqdm(video_paths, desc=f"ASR {asr_backend}"):
         video_file = os.path.basename(video_path)
         video_id = os.path.splitext(video_file)[0]
 
         if video_id in done_video_ids or not _claim(claims_dir, video_id):
+            continue
+
+        # Đánh dấu xong với 0 segment: không làm vậy thì video này bị coi là chưa xong mãi,
+        # tiến độ ASR không bao giờ đủ và bước merge chờ vô hạn.
+        if not has_audio(video_path):
+            print(f"  {video_file}: không có audio, bỏ qua ASR")
+            _append_video(output_jsonl_path, [], video_id)
             continue
 
         print(f"  Đang transcribe {video_file}...")
@@ -486,12 +496,10 @@ def main():
     parser.add_argument("--model_name", default=None,
                          help="Đổi sang vinai/PhoWhisper-medium nếu VRAM hạn chế. "
                               "Để trống sẽ chọn mặc định theo --asr_backend.")
-    parser.add_argument("--asr_backend", default="phowhisper",
+    parser.add_argument("--asr_backend", default="chunkformer",
                         choices=["phowhisper", "chunkformer"],
                         help="Backend ASR. chunkformer là đích đến; phowhisper "
                              "chỉ còn để đối chiếu và sẽ bị xóa sau khi có số đo.")
-    parser.add_argument("--kenlm_path", default=None,
-                        help="File KenLM cho pyctcdecode. Bỏ trống = decode greedy.")
     parser.add_argument("--shot_threshold", type=float, default=0.5,
                          help="Ngưỡng quyết định ranh giới shot của TransNetV2 (mặc định 0.5).")
     parser.add_argument("--vad_threshold", type=float, default=VAD_THRESHOLD,
@@ -548,7 +556,6 @@ def main():
             claims_dir=args.claims_dir,
             force=args.force,
             asr_backend=args.asr_backend,
-            kenlm_path=args.kenlm_path,
         )
     else:
         print("Bỏ qua ASR theo --skip_asr.")

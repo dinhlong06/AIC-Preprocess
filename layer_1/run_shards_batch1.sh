@@ -20,12 +20,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 STAGE="${1:-shots}"
 NSHARDS="${NSHARDS:-4}"
-BATCH1_DIR="$SCRIPT_DIR/batch1"
+BATCH1_DIR="${BATCH_DIR:-$SCRIPT_DIR/batch1}"
 SHARD_ROOT="$BATCH1_DIR/shards"
-VIDEO_DIR="$PROJECT_ROOT/dataset_batch1/videos/video"
+export VIDEO_DIR="${VIDEO_DIR:-$PROJECT_ROOT/dataset_batch1/videos/video}"
 
 if [[ "$STAGE" == "merge" ]]; then
-    n_total=$(cd "$VIDEO_DIR" && ls *.mp4 | wc -l)
+    n_total=$(ls "$VIDEO_DIR" | grep -cE '\.(mp4|mov)$')
     for name in shots whisper; do
         out="$BATCH1_DIR/$name.jsonl"
         found=("$SHARD_ROOT"/*/"$name.jsonl")
@@ -44,7 +44,7 @@ if [[ "$STAGE" == "merge" ]]; then
     exit 0
 fi
 
-mapfile -t VIDEOS < <(cd "$VIDEO_DIR" && ls *.mp4 | sort)
+mapfile -t VIDEOS < <(ls "$VIDEO_DIR" | grep -E '\.(mp4|mov)$' | sort)
 mapfile -t GPUS < <(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
     | sort -t',' -k2 -n -r | head -"$NSHARDS" | cut -d',' -f1 | tr -d ' ')
 
@@ -65,7 +65,9 @@ echo "== $STAGE (batch1): ${#VIDEOS[@]} video / $NSHARDS shard / GPU ${GPUS[*]} 
 for ((i = 0; i < NSHARDS; i++)); do
     out="$SHARD_ROOT/${STAGE}_$i"
     mkdir -p "$out"
+    # Backend ASR: mặc định chunkformer, truyền xuống cho khỏi phải set tay.
     OUTPUT_DIR="$out" GPU_ID="${GPUS[i]}" CLAIMS_DIR="$CLAIMS" \
+        ASR_BACKEND="${ASR_BACKEND:-chunkformer}" \
         "$SCRIPT_DIR/run_layer1_batch1.sh" \
             --claims_dir /data/claims \
             "$( [[ "$STAGE" == "shots" ]] && echo --skip_asr || echo --skip_shots )" \

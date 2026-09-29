@@ -16,13 +16,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 IMAGE_NAME="ai26-layer1"
-INPUT_DIR="$PROJECT_ROOT/dataset_batch1/videos/video"
+INPUT_DIR="${VIDEO_DIR:-$PROJECT_ROOT/dataset_batch1/videos/video}"
 # Override khi chạy nhiều shard song song: mỗi shard một OUTPUT_DIR riêng, vì
 # nhiều process cùng append một jsonl trên NFS sẽ xé dòng giữa chừng.
 OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/batch1}"
 CACHE_DIR="$SCRIPT_DIR/cache"
 # Thư mục claim dùng chung khi chạy nhiều shard (run_shards_batch1.sh đặt); rỗng = chạy đơn.
 CLAIMS_DIR="${CLAIMS_DIR:-}"
+# Backend ASR: chunkformer là đích đến, phowhisper chỉ còn để đối chiếu.
+ASR_BACKEND="${ASR_BACKEND:-chunkformer}"
 MOUNTS=()
 [[ -n "$CLAIMS_DIR" ]] && MOUNTS+=(-v "$CLAIMS_DIR:/data/claims")
 SHOT_THRESHOLD="0.5"   # ngưỡng ranh giới shot của TransNetV2, sửa ở đây nếu cần
@@ -61,4 +63,5 @@ docker run --rm \
     --vad_max_speech_duration_s "$VAD_MAX_SPEECH_DURATION_S" \
     --vad_min_silence_duration_ms "$VAD_MIN_SILENCE_DURATION_MS" \
     --vad_speech_pad_ms "$VAD_SPEECH_PAD_MS" \
+    --asr_backend "$ASR_BACKEND" \
     "$@"
