@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Chạy layer_2 song song nhiều shard.
 #
-#   ./run_shards.sh                    # 3 shard, pipeline_c
+#   ./run_shards.sh                    # 3 shard, pipeline_g
 #   NSHARDS=4 ./run_shards.sh
 #   DAKE_THREADS=4 NSHARDS=3 ./run_shards.sh
 #

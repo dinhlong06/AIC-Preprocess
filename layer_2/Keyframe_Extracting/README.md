@@ -1,7 +1,8 @@
 # Keyframe Extractor — AI Challenge 2026
 
 Module trích xuất Keyframe từ video dựa trên kết quả Shot Detector.
-Hỗ trợ **4 pipeline** để benchmark và lựa chọn thuật toán tối ưu.
+Hỗ trợ **2 pipeline**: `pipeline_g` (mặc định, đang chạy production) và
+`pipeline_h` (G + nhận biết vùng chữ, ứng viên A/B).
 
 ---
 
@@ -21,14 +22,14 @@ Embedding → Milvus
 
 ---
 
-## 4 Pipeline
+## 2 Pipeline
 
 | Pipeline | DAKE | Encoder | Mục tiêu |
 |----------|------|---------|-----------|
-| **A** | ❌ | BEiT-3 Large (1024-dim) | Baseline chất lượng cao nhất |
-| **B** | ❌ | MobileNetV3-Large (960-dim) | Baseline nhanh, không cần checkpoint |
-| **C** | ✅ | BEiT-3 Large | **Đề xuất chính** — cân bằng chất lượng & tốc độ |
-| **D** | ✅ | MobileNetV3-Large | Accuracy–Latency trade-off |
+| **G** | ✅ | BEiT-3 Large (1024-dim) | **Mặc định** — 7 giai đoạn, tham số hiệu chỉnh v3.1 |
+| **H** | ✅ | BEiT-3 Large | G + `text_prescan`: ưu tiên khung hình có thay đổi vùng chữ |
+
+Cả hai dùng chung bộ tham số G; H bổ sung khối `text_prescan` trong config.
 
 ### DAKE là gì?
 
@@ -48,10 +49,8 @@ Keyframe_Extractor/
 │       └── beit3.spm                      ← SentencePiece tokenizer
 │
 ├── configs/
-│   ├── pipeline_a.yaml    ← config Pipeline A
-│   ├── pipeline_b.yaml    ← config Pipeline B
-│   ├── pipeline_c.yaml    ← config Pipeline C
-│   └── pipeline_d.yaml    ← config Pipeline D
+│   ├── pipeline_g.yaml    ← config Pipeline G (mặc định)
+│   └── pipeline_h.yaml    ← config Pipeline H (G + text_prescan)
 │
 ├── src/
 │   ├── core/
@@ -64,14 +63,15 @@ Keyframe_Extractor/
 │   │   ├── frame_loader.py      ← Đọc frame từ video (Mode 1) hoặc ảnh dir (Mode 2)
 │   │   ├── dake.py              ← DAKE: JPEG steepness → sliding window → top-k
 │   │   ├── beit3_encoder.py     ← BEiT-3 Large visual encoder (1024-dim CLS)
-│   │   ├── mobilenet_encoder.py ← MobileNetV3-Large encoder (960-dim)
-│   │   └── semantic_filter.py   ← Cosine similarity sequential filter
+│   │   ├── mobilenet_encoder.py ← MobileNetV3-Large, chỉ dùng cho đánh giá vs GT
+│   │   ├── semantic_filter.py   ← Cosine similarity sequential filter
+│   │   ├── text_prescan.py      ← Nhận biết vùng chữ thay đổi (chỉ H)
+│   │   ├── diversity_filter.py  ← Giãn cách keyframe trong shot
+│   │   ├── transition_selector.py, blank_veto.py, sharpness_selector.py
 │   │
 │   └── extractors/
-│       ├── pipeline_a.py  ← BEiT-3 Semantic Only
-│       ├── pipeline_b.py  ← MobileNet Semantic Only
-│       ├── pipeline_c.py  ← DAKE + BEiT-3 (đề xuất)
-│       └── pipeline_d.py  ← DAKE + MobileNet
+│       ├── pipeline_g.py  ← 7 giai đoạn, mặc định
+│       └── pipeline_h.py  ← G + text_prescan
 │
 ├── unilm/                 ← BEiT-3 repo (đã clone từ microsoft/unilm)
 │   └── beit3/
@@ -80,11 +80,9 @@ Keyframe_Extractor/
 │   ├── raw_video/         ← Video .mp4 đầu vào
 │   └── shots/             ← shots.json từ Shot Detector (1 folder/video)
 │
-├── benchmark/             ← Output tự động sinh khi chạy
-│   ├── pipeline_a/
-│   ├── pipeline_b/
-│   ├── pipeline_c/
-│   ├── pipeline_d/
+├── benchmark*/            ← Output tự động sinh khi chạy (git-ignored)
+│   ├── pipeline_g/
+│   ├── pipeline_h/
 │   └── benchmark_summary.csv
 │
 ├── cli.py                 ← Entry point chính
@@ -134,14 +132,14 @@ dataset/
 
 > **Lưu ý**: Nếu không có `shots.json`, module sẽ tự động coi toàn bộ video là 1 shot.
 
-### 2. Chạy Pipeline C (đề xuất)
+### 2. Chạy Pipeline G (mặc định)
 
 ```bash
 cd Keyframe_Extractor
-python cli.py --pipeline pipeline_c --video_dir dataset/raw_video
+python cli.py --pipeline pipeline_g --video_dir dataset/raw_video
 ```
 
-### 3. Chạy tất cả 4 pipeline
+### 3. Chạy cả G và H
 
 ```bash
 python cli.py --pipeline all --video_dir dataset/raw_video
@@ -151,7 +149,7 @@ python cli.py --pipeline all --video_dir dataset/raw_video
 
 ```bash
 python cli.py \
-  --pipeline pipeline_c \
+  --pipeline pipeline_g \
   --video_dir dataset/raw_video \
   --shots_dir dataset/shots \
   --output_dir benchmark \
@@ -164,7 +162,7 @@ python cli.py \
 ### 5. Dùng file config YAML
 
 ```bash
-python cli.py --config configs/pipeline_c.yaml --video_dir dataset/raw_video
+python cli.py --config configs/pipeline_h.yaml --video_dir dataset/raw_video
 ```
 
 ---
@@ -175,7 +173,7 @@ python cli.py --config configs/pipeline_c.yaml --video_dir dataset/raw_video
 
 ```
 benchmark/
-├── pipeline_c/
+├── pipeline_g/
 │   ├── video1/
 │   │   ├── keyframes.jsonl     ← metadata từng keyframe (1 dòng/KF)
 │   │   ├── statistics.json     ← thống kê video này
@@ -200,8 +198,8 @@ benchmark/
 Ví dụ:
 | Pipeline | Video | #KF | KF/Shot | Time(s) | FPS | VRAM(GB) | Storage(MB) | Diversity | Coverage |
 |----------|-------|-----|---------|---------|-----|----------|-------------|-----------|----------|
-| pipeline_a | video1 | 820 | 2.5 | 145 | 62 | 4.2 | 312 | 0.0 | 0.91 |
-| pipeline_c | video1 | 650 | 2.0 | 52 | 170 | 2.1 | 248 | 0.0 | 0.94 |
+| pipeline_g | video1 | 820 | 2.5 | 145 | 62 | 4.2 | 312 | 0.0 | 0.91 |
+| pipeline_h | video1 | 650 | 2.0 | 52 | 170 | 2.1 | 248 | 0.0 | 0.94 |
 
 
 

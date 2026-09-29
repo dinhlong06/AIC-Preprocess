@@ -1,6 +1,0 @@
-"Thời gian","Phiên bản / Pipeline","Những thay đổi / Thực thi (Actions Taken)","Kết quả Benchmark (Recall, Precision, F1)","Nhận xét / Nguyên nhân (Root Causes)","Hướng xử lý tiếp theo (Next Steps)"
-"2026-07-19 14:30","V1.0 - Khởi tạo","Xây dựng kiến trúc 4 Pipelines: A (BEiT3), B (MobileNet), C (DAKE+BEiT3), D (DAKE+MobileNet). Tạo base components và CLI.","","",""
-"2026-07-19 23:08","V1.1 - Fix Bug","Sửa lỗi tìm kiếm video trong thư mục con bằng cách đổi hàm glob() sang rglob() trong cả Keyframe và Shot Detector.","","",""
-"2026-07-20 09:27","V1.2 - Fix Bug","Sửa lỗi import BEiT-3 (ModuleNotFoundError) bằng cách điều chỉnh sys.path lùi 2 cấp thay vì 3 cấp.","","",""
-"2026-07-20 10:28","V1.3 - Tối ưu RAM","Xử lý lỗi tràn RAM (OOM) khi không có file shots.json. Thêm logic cắt nhỏ video thành các chunk 300 frames (~12s).","","",""
-"2026-07-21 14:54","V1.4 - Tính năng mới","Thêm cờ `--gt_dir` vào CLI và Runner. Tích hợp MobileNetEncoder để encode ảnh Pred/GT tính Precision, Recall, F1.","","","" phục vụ mục đích thử nghiệm

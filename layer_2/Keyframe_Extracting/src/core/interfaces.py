@@ -28,7 +28,7 @@ class BaseKeyframeExtractor(ABC):
     def name(self) -> str:
         """
         Trả về tên định danh của pipeline.
-        Ví dụ: 'pipeline_a', 'pipeline_c'.
+        Ví dụ: 'pipeline_g', 'pipeline_h'.
         Tên này sẽ được dùng làm tên thư mục trong benchmark/.
         """
         pass

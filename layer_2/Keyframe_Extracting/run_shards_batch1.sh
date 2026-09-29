@@ -157,7 +157,7 @@ n_video=$(find "$VIDEO_DIR" -mindepth 1 -maxdepth 1 \( -name '*.mp4' -o -name '*
 n_shots=$(ls "$SHOTS_SPLIT_DIR" | wc -l)
 if [[ "$n_shots" -lt "$n_video" ]]; then
     echo "TỪ CHỐI: mới có shots cho $n_shots/$n_video video."
-    echo "Chạy layer_1/run_shards_batch1.sh merge trước."
+    echo "Chạy layer_1/run_shards.sh merge trước."
     exit 1
 fi
 

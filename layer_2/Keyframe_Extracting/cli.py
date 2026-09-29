@@ -2,13 +2,10 @@
 cli.py — Command Line Interface cho Keyframe Extractor Benchmark.
 
 Sử dụng:
-  python cli.py --pipeline pipeline_c --video_dir dataset/raw_video --shots_dir dataset/shots
+  python cli.py --pipeline pipeline_g --video_dir dataset/raw_video --shots_dir dataset/shots
 
   hoặc dùng file config yaml:
-  python cli.py --config configs/pipeline_c.yaml --video_dir dataset/raw_video
-
-  benchmark nhiều pipeline cùng lúc:
-  python cli.py --pipeline all --video_dir dataset/raw_video
+  python cli.py --config configs/pipeline_h.yaml --video_dir dataset/raw_video
 
 Toàn bộ tham số cũng có thể override qua CLI flag sau khi chỉ định --config.
 """
@@ -31,96 +28,6 @@ def load_config(config_path: str) -> dict:
     """
     with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
-
-
-def build_pipeline_a(cfg: dict, args: argparse.Namespace):
-    """Khởi tạo PipelineA từ config + CLI args."""
-    from src.extractors.pipeline_a import PipelineA
-    beit3_cfg = cfg.get("beit3", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineA(
-        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
-        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
-        device=args.device or beit3_cfg.get("device"),
-        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
-    )
-
-
-def build_pipeline_b(cfg: dict, args: argparse.Namespace):
-    """Khởi tạo PipelineB từ config + CLI args."""
-    from src.extractors.pipeline_b import PipelineB
-    mobile_cfg = cfg.get("mobilenet", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineB(
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
-        device=args.device or mobile_cfg.get("device"),
-        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
-    )
-
-
-def build_pipeline_c(cfg: dict, args: argparse.Namespace):
-    """Khởi tạo PipelineC từ config + CLI args."""
-    from src.extractors.pipeline_c import PipelineC
-    beit3_cfg = cfg.get("beit3", {})
-    dake_cfg = cfg.get("dake", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineC(
-        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
-        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
-        candidate_ratio=args.candidate_ratio or dake_cfg.get("candidate_ratio", 0.02),
-        window_size=dake_cfg.get("window_size", 3),
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
-        device=args.device or beit3_cfg.get("device"),
-        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
-    )
-
-
-def build_pipeline_d(cfg: dict, args: argparse.Namespace):
-    """Khởi tạo PipelineD từ config + CLI args."""
-    from src.extractors.pipeline_d import PipelineD
-    mobile_cfg = cfg.get("mobilenet", {})
-    dake_cfg = cfg.get("dake", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineD(
-        candidate_ratio=args.candidate_ratio or dake_cfg.get("candidate_ratio", 0.02),
-        window_size=dake_cfg.get("window_size", 3),
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
-        device=args.device or mobile_cfg.get("device"),
-        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
-    )
-
-
-def build_pipeline_e(cfg: dict, args: argparse.Namespace):
-    """Pipeline E: optical flow -> BEiT-3 -> semantic filtering."""
-    from src.extractors.pipeline_e import PipelineE
-    beit3_cfg = cfg.get("beit3", {})
-    motion_cfg = cfg.get("motion", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineE(
-        checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
-        spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
-        motion_threshold=(args.motion_threshold if args.motion_threshold is not None else motion_cfg.get("motion_threshold", 1.0)),
-        min_frame_distance=(args.min_distance if args.min_distance is not None else motion_cfg.get("min_frame_distance", 5)),
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.90),
-        device=args.device or beit3_cfg.get("device"),
-        batch_size=args.batch_size or beit3_cfg.get("batch_size", 32),
-    )
-
-
-def build_pipeline_f(cfg: dict, args: argparse.Namespace):
-    """Pipeline F: frame difference -> MobileNet -> semantic filtering."""
-    from src.extractors.pipeline_f import PipelineF
-    mobile_cfg = cfg.get("mobilenet", {})
-    motion_cfg = cfg.get("motion", {})
-    semantic_cfg = cfg.get("semantic", {})
-    return PipelineF(
-        motion_threshold=(args.motion_threshold if args.motion_threshold is not None else motion_cfg.get("motion_threshold", 5.0)),
-        min_frame_distance=(args.min_distance if args.min_distance is not None else motion_cfg.get("min_frame_distance", 5)),
-        similarity_threshold=args.threshold or semantic_cfg.get("similarity_threshold", 0.92),
-        device=args.device or mobile_cfg.get("device"),
-        batch_size=args.batch_size or mobile_cfg.get("batch_size", 32),
-    )
 
 
 def build_pipeline_g(cfg: dict, args: argparse.Namespace):
@@ -204,12 +111,6 @@ def build_pipeline_h(cfg: dict, args: argparse.Namespace):
 
 
 _PIPELINE_BUILDERS = {
-    "pipeline_a": (build_pipeline_a, "configs/pipeline_a.yaml"),
-    "pipeline_b": (build_pipeline_b, "configs/pipeline_b.yaml"),
-    "pipeline_c": (build_pipeline_c, "configs/pipeline_c.yaml"),
-    "pipeline_d": (build_pipeline_d, "configs/pipeline_d.yaml"),
-    "pipeline_e": (build_pipeline_e, "configs/pipeline_e.yaml"),
-    "pipeline_f": (build_pipeline_f, "configs/pipeline_f.yaml"),
     "pipeline_g": (build_pipeline_g, "configs/pipeline_g.yaml"),
     "pipeline_h": (build_pipeline_h, "configs/pipeline_h.yaml"),
 }
@@ -224,7 +125,7 @@ Ví dụ:
   # Chạy Pipeline G (Upgraded multi-stage pipeline):
   python cli.py --pipeline pipeline_g --video_dir dataset/raw_video
 
-  # Chạy tất cả pipeline:
+  # Chạy cả G và H:
   python cli.py --pipeline all --video_dir dataset/raw_video
 
   # Override tham số:
@@ -237,8 +138,8 @@ Ví dụ:
         "--pipeline",
         type=str,
         default="pipeline_g",
-        choices=["pipeline_a", "pipeline_b", "pipeline_c", "pipeline_d", "pipeline_e", "pipeline_f", "pipeline_g", "pipeline_h", "all"],
-        help="Pipeline để chạy. 'all' sẽ chạy toàn bộ pipeline lần lượt.",
+        choices=["pipeline_g", "pipeline_h", "all"],
+        help="Pipeline để chạy. 'all' sẽ chạy lần lượt G và H.",
     )
     parser.add_argument(
         "--config",
@@ -301,9 +202,7 @@ Ví dụ:
     parser.add_argument("--candidate_ratio", type=float, default=None,
                         help="DAKE candidate ratio [0.01-0.20] (override config).")
     parser.add_argument("--min_distance", type=int, default=None,
-                        help="Minimum frame distance for motion-based pipelines E/F.")
-    parser.add_argument("--motion_threshold", type=float, default=None,
-                        help="Motion threshold for optical-flow/frame-difference pipelines E/F.")
+                        help="Khoảng cách khung hình tối thiểu giữa 2 keyframe.")
 
     # Evaluation flags
     parser.add_argument(

@@ -111,7 +111,7 @@ class PipelineStatistics:
     Được dùng để tạo benchmark_summary.csv.
 
     Fields:
-        pipeline            : Tên pipeline (ví dụ "pipeline_c")
+        pipeline            : Tên pipeline (ví dụ "pipeline_g")
         video_id            : ID video
         num_shots           : Số shot xử lý
         total_keyframes     : Tổng keyframe sinh ra
