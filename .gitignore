@@ -92,7 +92,6 @@ eda_video_themes.py
 .*/
 !.gitignore
 
-test*/
 experiments/
 
 # Runtime artifacts / backups / symlinks not meant for git

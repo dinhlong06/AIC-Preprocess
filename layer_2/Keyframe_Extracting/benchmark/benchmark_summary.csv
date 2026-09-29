@@ -1,3 +1,0 @@
-Pipeline,Video,#KF,KF/Shot,Time(s),FPS,VRAM(GB),Storage(MB),Diversity,Coverage,Precision,Recall,F1
-pipeline_c,K01_V001,364,1.22,690.6,38.0,2.79,132.9,0.333,0.275,0.0,0.0,0.0
-pipeline_c,K01_V002,350,1.36,1001.76,32.4,2.73,127.74,0.367,0.258,0.0,0.0,0.0
