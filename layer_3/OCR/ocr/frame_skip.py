@@ -1,15 +1,11 @@
 """
-frame_skip.py -- cheap CPU pre-filters, ported from an earlier local Paddle+VietOCR
-pipeline's engine.py + preprocessor.py (retired, see memory ocr_v2-package-refactor)
+frame_skip.py -- cheap CPU pre-filters.
 
-Blank-frame and near-duplicate-frame skips were removed 2026-08-27: blank
-skip's harm was never measured before being disabled, and the similarity
-(pHash) skip measurably corrupted OCR at scale (see memory) -- pHash on the
-WHOLE frame is dominated by static background (banner/photo) even when the
-on-screen text changes, and because the chain only compares each frame to
-the ONE before it, a single false match propagates a stale OCR result
-forward indefinitely (batch1: 1,028 shots, ~22% of frames affected, one
-chain 85 frames long). Only the blur check remains.
+Only the blur check remains: blank/near-duplicate skips were dropped because
+whole-frame pHash is dominated by static background (banner/photo) — when the
+on-screen text changes it still matches, and each frame is only compared to
+the ONE before it, so one false match propagates a stale OCR result forward
+(batch1: 1,028 shots affected, one chain 85 frames long).
 """
 
 from __future__ import annotations

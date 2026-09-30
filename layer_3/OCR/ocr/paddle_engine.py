@@ -17,8 +17,7 @@ doesn't hallucinate Vietnamese marks onto English text (measured: "WELCOME"/
 
 So detection stays PaddleOCR, recognition runs BOTH VietOCR and Paddle's own
 recognizer on the detector's crops. Both recognizers' text is trusted
-unconditionally (no confidence filter -- every non-empty box is kept). This
-mirrors the original (retired) Paddle+VietOCR pipeline's detector reuse.
+unconditionally (no confidence filter -- every non-empty box is kept).
 VietOCR's answer is kept per box: it measured better on every case tried.
 
 Detection uses the full `PaddleOCR()` combined pipeline (not the standalone

@@ -26,19 +26,9 @@ production commands and the token-budget measurements that justify them).
 ## Comparison path: `OCR/` (local GPU)
 
 **PaddleOCR PP-OCRv6 detection + VietOCR/Paddle recognition**, with Vietnamese
-diacritics corrected locally per frame. Kept to regenerate baseline outputs and
-for A/B comparison — superseded by Gemma on news-style frames.
+diacritics corrected locally per frame. Used to regenerate baseline outputs.
 
 Docs: [OCR/README.md](OCR/README.md)
-
-## Retired approaches
-
-Removed from the repo; rationale in git history:
-
-- **Qwen3-VL as OCR** — ~4x slower, repetition loops, 72% line recall.
-- **Host vLLM stage fixing merged-text boxes** — affected only ~0.55% of boxes.
-- **DeepSolo + PARSeq** — better recall (93.6% vs 75.2%) but its output had no
-  consumer and the Docker build context was never committable.
 
 ## Downstream
 

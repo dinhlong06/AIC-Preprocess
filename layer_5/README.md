@@ -82,7 +82,7 @@ hits += r.search_all("chợ hoa tết", top_k=100)      # matches content_all (a
 
 # hydrate — full metadata + absolute image paths for display/prediction
 kfs = r.get_frames([h["keyframe_id"] for h in hits[:20]])
-kfs[0]["image_path"]   # "/data/layer_2/Keyframe_Extracting/benchmark/pipeline_c/K01_V001/..."
+kfs[0]["image_path"]   # e.g. "/data/layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g/L21_V001/..."
 
 # shots of one video, sorted by start_ms
 shots = r.get_shots("K01_V001")

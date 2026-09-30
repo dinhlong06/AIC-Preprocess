@@ -3,9 +3,8 @@
 # -----------------------------------------------------------------------------
 
 paddle:
-  # run_paddle.sh always passes --input pointing at
-  # ../../layer_2/Keyframe_Extracting/benchmark/<PIPELINE> -- this is only the
-  # fallback for calling run_paddle.py directly without the wrapper script.
+  # run_paddle.sh always passes --input -- this is only the fallback for
+  # calling run_paddle.py directly without the wrapper script.
   input_dir: "../../layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g"
   # VietOCR result (every non-empty box, no confidence filter, see
   # ocr/paddle_engine.py) -- this is what stage 2 corrects.

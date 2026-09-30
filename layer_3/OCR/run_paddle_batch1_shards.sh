@@ -2,8 +2,7 @@
 # Worker-pool song song cho OCR stage 1 (PaddleOCR), batch1. Mỗi container tự
 # claim video CHƯA ai làm qua claims dir dùng chung (tạo file O_EXCL, atomic
 # kể cả trên NFS) -- nên thêm/bớt container bất cứ lúc nào KHÔNG cần tính lại
-# từ đầu, khác bản round-robin tĩnh trước đây (video gán cứng theo index lúc
-# khởi động, đổi NSHARDS là vỡ mapping).
+# từ đầu (video không gán cứng theo index, NSHARDS đổi lúc nào cũng được).
 #
 # Cách dùng:
 #   ./run_paddle_batch1_shards.sh              # launch N container nền (N = số GPU rảnh)

@@ -44,8 +44,7 @@ Defaults point at batch2; for batch1:
 ## Notes
 
 - ASR backend is **ChunkFormer CTC (khanhld/chunkformer-ctc-large-vie)** — one
-  `endless_decode` call per VAD segment. PhoWhisper was measured against it and
-  removed (history in git).
+  `endless_decode` call per VAD segment.
 - Videos with no audio get a `.done` marker with 0 segments — otherwise merge
   would wait forever.
 - `merge` refuses to produce a file missing videos (progress < total) unless
@@ -53,8 +52,6 @@ Defaults point at batch2; for batch1:
 - Model weights live in `cache/huggingface` (bind-mounted, not baked into the
   image); first run downloads them.
 - **TransNetV2 is vendored** in `transnetv2/inference` (~35MB, code + TF
-  weights). The upstream repo `soCzech/TransNetV2` stores its weights in GitHub
-  LFS and has exhausted its LFS budget, so `git clone` no longer yields real
-  weights — a fresh `docker build` would break. The vendored copy was extracted
-  from a working image; it is only the `inference` folder, which is all this
-  layer uses.
+  weights). This is the only folder of the TransNetV2 repo that this layer
+  uses; the Dockerfile copies it into the image so the build needs no network
+  access to external model repos.
