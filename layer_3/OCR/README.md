@@ -20,6 +20,10 @@ OCR/
 ├── run_ocr.py                # CLI entry point
 ├── run.sh                    # single run in Docker on the freest GPU
 ├── run_shards.sh             # worker pool: launch / add / status / release / merge
+├── download_weights.sh       # fetch detector + PARSeq-VN weights (sha256-verified)
+├── Dockerfile                # builds ocr-deepsolo-parseq (det2 + DeepSolo + strhub)
+├── requirements.txt          # pinned python env of that image
+├── parseq/                   # vendored strhub (PARSeq-VN), patched for Python 3.8
 ├── config.yaml               # detector + skip params
 ├── ocr/
 │   ├── deepsolo_engine.py # DeepSolo det + PARSeq-VN rec (Vietnamese charset)
@@ -34,9 +38,21 @@ OCR/
 Weights (git-ignored, `experiments/deepsolo_parseq/`):
 `weights/ic15_res50_finetune_synth-tt-mlt-13-15-textocr.pth` (DeepSolo R50
 detector) + `vn_scenetext/weights/rec/best-parseq.ckpt` (PARSeq-VN, Vietnamese
-charset). The `ocr-deepsolo-parseq` image (detectron2 + strhub) cannot be
-rebuilt from this repo — keep the `ocr-deepsolo-parseq-backup.tar` backup
-at repo root.
+charset). Both exceed GitHub's 100 MB file limit — `./download_weights.sh`
+fetches them (idempotent, sha256-verified) and `run.sh` calls it automatically.
+The PARSeq-VN checkpoint has no public upstream; it is hosted on this repo's
+[releases](https://github.com/dinhlong06/retrieval_system/releases).
+
+The `ocr-deepsolo-parseq` image is built from this folder's `Dockerfile`
+(tensorflow 2.13 base + torch cu118 + detectron2 v0.6 + DeepSolo @dbadae9 +
+vendored `parseq/`):
+
+```bash
+docker build -t ocr-deepsolo-parseq .
+```
+
+A `docker load`-able backup lives at the repo root
+(`ocr-deepsolo-parseq-backup.tar`) if you want to skip the ~30 min build.
 
 ---
 
@@ -71,4 +87,5 @@ NSHARDS=4 ./run_shards.sh                    # background GPUs
 | `Output already exists` | delete files in `output/` or pass `--overwrite` |
 | `CUDA was requested ...` | drop the specific GPU, let the script pick a free one |
 | Container dies mid-run | re-run the same command — checkpointed by `frame_id`, auto-resumes |
-| Missing image | `docker load -i $PROJECT_ROOT/ocr-deepsolo-parseq-backup.tar` (tarball at repo root) |
+| Missing image | `docker build -t ocr-deepsolo-parseq .` (Dockerfile here) or `docker load -i $PROJECT_ROOT/ocr-deepsolo-parseq-backup.tar` |
+| Missing weights | `./download_weights.sh` (also run automatically by `run.sh`) |

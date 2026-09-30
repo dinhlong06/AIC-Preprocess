@@ -41,9 +41,12 @@ CPUS_PER_SHARD="${CPUS_PER_SHARD:-2}"
 
 mkdir -p "$OUTPUT_DIR" "$CLAIMS_DIR/claimed" "$CLAIMS_DIR/done"
 
+"$SCRIPT_DIR/download_weights.sh"
+
 if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
-    echo "Missing image $IMAGE_NAME -- khôi phục từ ocr-deepsolo-parseq-backup.tar:" >&2
-    echo "  docker load -i <backup>/ocr-deepsolo-parseq-backup.tar" >&2
+    echo "Missing image $IMAGE_NAME -- build lại từ repo:" >&2
+    echo "  docker build -t $IMAGE_NAME $SCRIPT_DIR" >&2
+    echo "hoặc khôi phục từ backup: docker load -i <backup>/ocr-deepsolo-parseq-backup.tar" >&2
     exit 1
 fi
 
@@ -106,7 +109,7 @@ import glob, json
 recs = []
 for f in sorted(glob.glob('$CLAIMS_DIR/done/*.json')):
     d = json.load(open(f))
-    recs.extend(d.get('vietocr', d.get('texts', [])))
+    recs.extend(d.get('vietocr', []))
 json.dump(recs, open('$OUTPUT_DIR/output_ocr.json', 'w'), ensure_ascii=False, indent=2)
 print(f'{len(recs)} record -> $OUTPUT_DIR/output_ocr.json')
 "

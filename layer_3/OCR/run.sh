@@ -9,11 +9,8 @@
 #   FRAMES_DIR   thư mục keyframe nguồn (mặc định batch1 pipeline_g)
 #   OUTPUT_DIR   nơi ghi JSON (mặc định ./output)
 #
-# Dùng image ocr-deepsolo-parseq (detectron2 + DeepSolo + strhub) và mount
-# experiments/deepsolo_parseq vào /exp (detection weights + PARSeq checkpoint,
-# xem ocr/deepsolo_engine.py). Image không build lại được từ repo -- giữ bản
-# backup ocr-deepsolo-parseq-backup.tar.
-#
+# Dựng image bằng ./download_weights.sh + docker build -t ocr-deepsolo-parseq .
+# Weight (163MB + 274MB) vượt giới hạn 100MB của GitHub nên tải qua script.
 # Host này là GPU server dùng chung -> mặc định chọn 1 GPU đang rảnh nhất
 # (free memory cao nhất) qua nvidia-smi, có thể override bằng biến GPU_ID.
 
@@ -28,15 +25,12 @@ FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_ba
 OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/output}"
 mkdir -p "$OUTPUT_DIR"
 
-for f in "$EXP_DIR/weights/ic15_res50_finetune_synth-tt-mlt-13-15-textocr.pth" \
-         "$EXP_DIR/vn_scenetext/weights/rec/best-parseq.ckpt" \
-         "$EXP_DIR/DeepSolo/DeepSolo/configs/R_50/IC15/finetune_150k_tt_mlt_13_15_textocr.yaml"; do
-    [[ -f "$f" ]] || { echo "Missing $f -- xem README.md mục DeepSolo+PARSeq weights"; exit 1; }
-done
+"$SCRIPT_DIR/download_weights.sh"
 
 if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
-    echo "Missing image $IMAGE_NAME -- khôi phục từ tarball backup ở repo root:"
-    echo "  docker load -i $PROJECT_ROOT/ocr-deepsolo-parseq-backup.tar"
+    echo "Missing image $IMAGE_NAME -- build lại từ repo:" >&2
+    echo "  docker build -t $IMAGE_NAME $SCRIPT_DIR" >&2
+    echo "hoặc khôi phục từ backup: docker load -i $PROJECT_ROOT/ocr-deepsolo-parseq-backup.tar" >&2
     exit 1
 fi
 

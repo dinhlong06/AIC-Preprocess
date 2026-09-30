@@ -1,5 +1,5 @@
 """
-formatter.py -- output JSON + checkpoint I/O, shared by both pipeline stages.
+formatter.py -- output JSON + checkpoint I/O for the OCR pipeline.
 
 Output schema (per frame):
 {
@@ -7,9 +7,8 @@ Output schema (per frame):
     "texts": [{"text": "...", "confidence": 0.9823, "box": [x1, y1, x2, y2]}, ...]
 }
 
-`box` is Paddle's axis-aligned detection rectangle, carried through stage 2
-unchanged -- a box touching the frame edge marks a line the scrolling ticker cut
-off mid-sentence.
+`box` is DeepSolo's axis-aligned detection rectangle -- a box touching the frame
+edge marks a line the scrolling ticker cut off mid-sentence.
 """
 
 from __future__ import annotations

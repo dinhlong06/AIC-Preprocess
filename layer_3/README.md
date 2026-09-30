@@ -41,6 +41,8 @@ layer_3/
     ├── run_ocr.py             # CLI entry point
     ├── run.sh                 # single run in Docker on the freest GPU
     ├── run_shards.sh          # worker pool: launch / add / status / release / merge
+    ├── download_weights.sh    # fetch detector + PARSeq-VN weights (sha256-verified)
+    ├── Dockerfile + requirements.txt + parseq/   # rebuilds the ocr-deepsolo-parseq image
     ├── config.yaml            # detector + skip params
     ├── ocr/                   # deepsolo_engine, corrector, frame_skip, loader, formatter, pipeline
     └── output/                # run results (git-ignored)

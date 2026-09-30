@@ -19,29 +19,7 @@ import unicodedata
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# 1. Unicode & Tone Mark Normalization Rules
-# ---------------------------------------------------------------------------
-# Modern Vietnamese tone placement map (chuẩn mới: đặt dấu trên âm chính)
-_TONE_NORMALIZATION_MAP = {
-    "òa": "oà", "oà": "òa",
-    "òe": "oè", "oè": "òe",
-    "ùy": "uỳ", "uỳ": "ủy",
-    "óa": "oá", "oá": "óa",
-    "óe": "oé", "oé": "óe",
-    "úy": "uý", "uý": "úy",
-    "ỏa": "oả", "oả": "ỏa",
-    "ỏe": "oẻ", "oẻ": "ỏe",
-    "ủy": "uỷ", "uỷ": "ủy",
-    "õa": "oã", "oã": "õa",
-    "õe": "oẽ", "oẽ": "õe",
-    "ũy": "uỹ", "uỹ": "ũy",
-    "ọa": "oạ", "oạ": "ọa",
-    "ọe": "oẹ", "oẹ": "ọe",
-    "ụy": "uỵ", "uỵ": "ụy",
-}
-
-# ---------------------------------------------------------------------------
-# 2. Common OCR Confusions & Patterns
+# OCR Confusions & Patterns
 # ---------------------------------------------------------------------------
 # Time pattern: 1O:3O -> 10:30, 08:3O -> 08:30
 _TIME_PATTERN = re.compile(r"\b([0-2]?[0-9Oob])[:.hH]([0-5]?[0-9Oob])\b")
@@ -49,8 +27,6 @@ _TIME_PATTERN = re.compile(r"\b([0-2]?[0-9Oob])[:.hH]([0-5]?[0-9Oob])\b")
 _YEAR_PATTERN = re.compile(r"\b(19[89Oob][0-9Oob]|20[0-3Oob][0-9Oob])\b")
 # Percentage pattern: 9O% -> 90%, 5O% -> 50%
 _PERCENT_PATTERN = re.compile(r"\b(\d+)[Oob]%\b")
-# Currency pattern: 1O.OOOđ -> 10.000đ, 5O0k -> 500k
-_CURRENCY_PATTERN = re.compile(r"\b(\d+)[Oo](\d+)\b")
 
 # Whitespace cleaner: collapses duplicate spaces, trims margins
 _WS_PATTERN = re.compile(r"\s+")
@@ -192,10 +168,3 @@ def correct_record_locally(record: dict[str, Any]) -> dict[str, Any]:
         if raw:
             item["text"] = normalize_vietnamese_text(raw)
     return record
-
-
-def correct_records_locally(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Batch-normalize all OCR records locally on CPU in milliseconds."""
-    for record in records:
-        correct_record_locally(record)
-    return records

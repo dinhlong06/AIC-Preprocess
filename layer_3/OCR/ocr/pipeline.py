@@ -36,13 +36,12 @@ def _process_video_frames(
     engine: DeepSoloParseqEngine,
     blur_thresh: float,
     preprocess: bool,
-) -> tuple[list[dict], list[dict]]:
+) -> list[dict]:
     """Run the same per-frame skip-heuristic + engine.run() loop as
     run_ocr_pipeline, but scoped to one video's frames -- used by the
     claims-dir path where each video is processed and checkpointed in
     isolation."""
     records: list[dict] = []
-    records_origin: list[dict] = []
 
     for frame_id, path in group:
         need_gray = blur_thresh or preprocess
@@ -51,22 +50,18 @@ def _process_video_frames(
             frame_data = frame_skip.read_frame(path)
             if frame_data is None:
                 records.append({"frame_id": frame_id, "texts": []})
-                records_origin.append({"frame_id": frame_id, "texts": []})
                 continue
             bgr, gray = frame_data
 
         if blur_thresh and frame_skip.is_blurry(gray, blur_thresh):
             records.append({"frame_id": frame_id, "texts": []})
-            records_origin.append({"frame_id": frame_id, "texts": []})
             continue
 
         source = frame_skip.preprocess(bgr) if preprocess else path
-        texts, _ = engine.run(source)
-        record = correct_record_locally({"frame_id": frame_id, "texts": texts})
-        records.append(record)
-        records_origin.append({"frame_id": frame_id, "texts": []})
+        texts = engine.run(source)
+        records.append(correct_record_locally({"frame_id": frame_id, "texts": texts}))
 
-    return records, records_origin
+    return records
 
 
 def _run_ocr_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dict) -> None:
@@ -106,13 +101,11 @@ def _run_ocr_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dict) 
         if engine is None:
             engine = _build_engine(cfg)
 
-        records, records_origin = _process_video_frames(group, engine, blur_thresh, preprocess)
+        records = _process_video_frames(group, engine, blur_thresh, preprocess)
         done_marker = done_dir / f"{video_id}.json"
         tmp = done_marker.with_suffix(".json.tmp")
-        # Giữ schema {"vietocr", "paddle_origin"} cho tương thích với các file
-        # done cũ (batch2) -- "vietocr" ở đây là output PARSeq, origin luôn rỗng.
         tmp.write_text(
-            json.dumps({"vietocr": records, "paddle_origin": records_origin}, ensure_ascii=False, indent=2),
+            json.dumps({"vietocr": records}, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
         tmp.replace(done_marker)
@@ -169,7 +162,7 @@ def run_ocr_pipeline(cfg: dict) -> None:
             continue
 
         source = frame_skip.preprocess(bgr) if preprocess else path
-        texts, _ = engine.run(source)
+        texts = engine.run(source)
         records.append(correct_record_locally({"frame_id": frame_id, "texts": texts}))
 
     elapsed = time.time() - t0

@@ -1,7 +1,6 @@
 """DeepSolo (detection) + PARSeq-VN (recognition) stage-1 engine.
 
-engine.run(path_or_bgr) -> (list_of_line_dicts, []) with the origin list
-always empty (single recognizer, nothing to merge).
+engine.run(path_or_bgr) -> list_of_line_dicts.
 
 Only runnable inside the ocr-deepsolo-parseq image (detectron2/DeepSolo/
 strhub on PYTHONPATH) -- launch via ./run.sh, which mounts
@@ -99,7 +98,9 @@ class DeepSoloParseqEngine:
         pad_x: float = 0.1,
     ) -> None:
         cfg = get_cfg()
-        cfg.merge_from_file(str(EXP / "DeepSolo/DeepSolo/configs/R_50/IC15/finetune_150k_tt_mlt_13_15_textocr.yaml"))
+        # config lấy trong image (DeepSolo được clone lúc build, sha khớp bản ở /exp),
+        # còn weight thì mount từ /exp qua DEEPSOLO_ROOT
+        cfg.merge_from_file("/workspace/DeepSolo/configs/R_50/IC15/finetune_150k_tt_mlt_13_15_textocr.yaml")
         cfg.MODEL.WEIGHTS = str(EXP / "weights/ic15_res50_finetune_synth-tt-mlt-13-15-textocr.pth")
         cfg.MODEL.TRANSFORMER.INFERENCE_TH_TEST = det_threshold
         cfg.INPUT.MIN_SIZE_TEST = min_size
@@ -111,11 +112,11 @@ class DeepSoloParseqEngine:
         self.rec_ms = 0.0
 
     @torch.inference_mode()
-    def run(self, source: "str | object") -> tuple[list[dict], list[dict]]:
+    def run(self, source: "str | object") -> list[dict]:
         if isinstance(source, str):
             img = cv2.imread(source)
             if img is None:
-                return [], []
+                return []
         else:
             img = source
 
@@ -128,7 +129,7 @@ class DeepSoloParseqEngine:
             crops = [crops[i] for i in _dedupe(np.array([b for _, b in crops]).reshape(-1, 4), inst.scores.numpy())]
         crops = [(c, b) for c, b in crops if c.size]
         if not crops:
-            return [], []
+            return []
 
         t = time.time()
         batch = torch.stack([self._tf(Image.fromarray(cv2.cvtColor(c, cv2.COLOR_BGR2RGB))) for c, _ in crops]).cuda()
@@ -140,4 +141,4 @@ class DeepSoloParseqEngine:
             for p, pr, (_, b) in zip(preds, probs, crops)
             if p
         ]
-        return _group_lines(words), []
+        return _group_lines(words)
