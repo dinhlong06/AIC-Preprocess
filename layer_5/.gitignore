@@ -12,7 +12,7 @@ venv/
 volumes/
 
 # Đổi port + named volume cho máy dùng chung / Docker rootless.
-# Chỉ có tác dụng trên một máy — 5 ràng buộc cụ thể ghi ở README.Docker.md.
+# Chỉ có tác dụng trên một máy — 5 ràng buộc cụ thể ghi ở README.md.
 docker-compose.override.yaml
 
 # Jupyter
