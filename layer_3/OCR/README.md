@@ -3,10 +3,13 @@
 Reads Vietnamese text from keyframes on GPU with **DeepSolo detection +
 PARSeq-VN recognition**, correcting diacritics in-frame (`ocr/corrector.py`).
 
-> The **production OCR is `../OCR_gemma/gemma_ocr.py`** — Gemma 4 over API
-> (UIT + Google AI Studio). This module is the local-GPU path: no API quota,
-> reproducible offline. Output schema (`frame_id` = layer 2 `keyframe_id`)
-> matches what `layer_5` ingests via `--ocr`.
+> The API path is `../OCR_gemma/gemma_ocr.py` — Gemma 4 over API (UIT +
+> Google AI Studio). This module is the local-GPU production path: no API
+> quota, reproducible offline. Output schema (`frame_id` = layer 2
+> `keyframe_id`) matches what `layer_5` ingests via `--ocr`.
+
+Measured on 30 mixed frames vs Gemma: median char-similarity 0.95,
+coverage 29/30 vs 24/30, ~2.9 fps (det ~260ms + rec ~50ms per frame).
 
 ---
 
@@ -29,10 +32,11 @@ OCR/
 ```
 
 Weights (git-ignored, `experiments/deepsolo_parseq/`):
-`weights/ic15_... .pth` (DeepSolo R50 detector) +
-`vn_scenetext/weights/rec/best-parseq.ckpt` (PARSeq-VN). The
-`ocr-deepsolo-parseq` image (detectron2 + strhub) cannot be rebuilt from this
-repo — keep the `ocr-deepsolo-parseq-backup.tar` backup.
+`weights/ic15_res50_finetune_synth-tt-mlt-13-15-textocr.pth` (DeepSolo R50
+detector) + `vn_scenetext/weights/rec/best-parseq.ckpt` (PARSeq-VN, Vietnamese
+charset). The `ocr-deepsolo-parseq` image (detectron2 + strhub) cannot be
+rebuilt from this repo — keep the `ocr-deepsolo-parseq-backup.tar` backup
+at repo root.
 
 ---
 
@@ -67,4 +71,4 @@ NSHARDS=4 ./run_shards.sh                    # background GPUs
 | `Output already exists` | delete files in `output/` or pass `--overwrite` |
 | `CUDA was requested ...` | drop the specific GPU, let the script pick a free one |
 | Container dies mid-run | re-run the same command — checkpointed by `frame_id`, auto-resumes |
-| Missing image | `docker load -i <backup>/ocr-deepsolo-parseq-backup.tar` |
+| Missing image | `docker load -i $PROJECT_ROOT/ocr-deepsolo-parseq-backup.tar` (tarball at repo root) |

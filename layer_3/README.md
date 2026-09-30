@@ -3,8 +3,8 @@
 Reads text out of the keyframe images chosen by layer 2. Two paths:
 
 ```
-keyframes ──► OCR_gemma (Gemma 4 over API) ──► gemma_ocr_batch1.jsonl      (production)
-         └──► OCR (PaddleOCR, local GPU) ────► output_vietocr.json        (comparison)
+keyframes ──► OCR_gemma (Gemma 4 over API) ──► gemma_ocr_batch1.jsonl      (API path)
+         └──► OCR (DeepSolo+PARSeq, GPU) ───► output_ocr.json             (local production path)
 ```
 
 - `OCR_gemma/gemma_ocr.py`: Gemma 4 27B/31B over HTTP (UIT endpoint + Google
