@@ -1,12 +1,13 @@
-# Video Retrieval System — AIC 2026
+# Video Preprocessing & Indexing Pipeline — AIC 2026
 
-**Finalist — AI Challenge 2026, Ho Chi Minh City.** This is the end-to-end
-retrieval pipeline our team took to the contest finals, covering all three
-query types of the challenge: Textual KIS, QA, and TRAKE.
+**Finalist — AI Challenge 2026, Ho Chi Minh City.** This is the preprocessing
+and indexing pipeline our team built for the contest finals: the data side of
+our retrieval system, covering all three query types of the challenge
+(Textual KIS, QA, TRAKE).
 
-From raw videos to a searchable index: shot segmentation, keyframe
-extraction, OCR + ASR text, SigLIP2 embeddings, and a hybrid
-vector (Milvus) + BM25 (Elasticsearch) search API.
+From raw videos to searchable stores: shot segmentation, keyframe extraction,
+OCR + ASR text, SigLIP2 embeddings, and a hybrid vector (Milvus) + BM25
+(Elasticsearch) index with a search API.
 
 ## Pipeline
 
