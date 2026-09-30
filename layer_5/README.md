@@ -1,8 +1,12 @@
-## Why there is a `docker-compose.override.yaml`
+# Layer 5 — Indexing + Search API
 
-Compose auto-loads that file on top of `docker-compose.yaml` (no `-f` flag
-needed). On a shared machine with rootless Docker it is **mandatory**, not
-optional:
+## Running on a shared machine: you need `docker-compose.override.yaml`
+
+**That file is NOT in git** (`.gitignore`d — it only has meaning on this one
+machine). Compose auto-loads it on top of `docker-compose.yaml` (no `-f` flag
+needed); on this shared machine with rootless Docker the stack **does not come
+up without it**. If you clone the repo onto a shared machine, recreate the file
+from these five constraints:
 
 1. **Ports** — 9200 is already taken by someone else's Elasticsearch 7.17, and
    19530/9000/8000 are occupied too. The override remaps the host side to
@@ -28,9 +32,7 @@ optional:
    `"/.*/"` rather than `"*"`: ES writes env vars into overrides.yml, where a
    bare `*` is parsed by YAML as an alias → ES dies on startup.
 
-A dedicated machine works with the base `docker-compose.yaml` alone — just drop
-this file. Anyone cloning the repo onto a shared machine has to recreate it from
-the five constraints above.
+A dedicated machine works with the base `docker-compose.yaml` alone.
 
 ## For the algorithm team (read the data, install nothing on the host)
 
@@ -155,6 +157,3 @@ curl "http://<server-ip>:8021/transcript/v001?start_ms=0&end_ms=5000" -H "X-API-
 ```
 
 Auto-generated docs (Swagger UI) at `http://<server-ip>:8021/docs`.
-
-### References
-* [Docker's Python guide](https://docs.docker.com/language/python/)
