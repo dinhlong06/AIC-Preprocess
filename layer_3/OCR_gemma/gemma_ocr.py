@@ -25,9 +25,12 @@ from pathlib import Path
 # ais26/ais31: Gemma 4 trên Google AI Studio (GEMINI_API_KEY) -- quota riêng, chạy song song với UIT. Ảnh cố
 # định 258 token (mediaResolution bị bỏ qua) nhưng caption ngang UIT 1120 trên 6 ảnh khó. Quota free mỗi model
 # 30 RPM / 16K TPM / 14.4K RPD, ~650 token/request -> tự giãn nhịp ~22 request/phút.
-AIS = "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent"
-MODELS = {"gemma": ("https://llm.uit.edu.vn/gemma/v1/chat/completions", "gemma-4-26b", int(os.environ.get("GEMMA_WORKERS", 20))),
-          "qwen": ("https://llm.uit.edu.vn/qwen/v1/chat/completions", "qwen3.8-27b", 4),
+AIS_BASE = os.environ.get("GEMINI_BASE_URL",
+    "https://generativelanguage.googleapis.com/v1beta/models/{}:generateContent")
+UIT_BASE = os.environ.get("UIT_BASE_URL", "https://llm.uit.edu.vn").rstrip("/")
+AIS = AIS_BASE
+MODELS = {"gemma": (f"{UIT_BASE}/gemma/v1/chat/completions", "gemma-4-26b", int(os.environ.get("GEMMA_WORKERS", 20))),
+          "qwen": (f"{UIT_BASE}/qwen/v1/chat/completions", "qwen3.8-27b", 4),
           "ais26": (AIS.format("gemma-4-26b-a4b-it"), "gemma-4-26b-a4b-it", 12),
           "ais31": (AIS.format("gemma-4-31b-it"), "gemma-4-31b-it", 32)}  # url, model, workers
 # Đo 2026-09-24 (26B, ảnh 578 token vào/request): 4 key x 20/phút = 77 caption/phút (97% thành công); 25/phút/key hoặc
