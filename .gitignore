@@ -94,6 +94,10 @@ eda_video_themes.py
 
 experiments/
 
+# Unit/integration test — chạy local, không track
+tests/
+test_*.py
+
 # Runtime artifacts / backups / symlinks not meant for git
 layer_1/batch1_greedy/
 *.done

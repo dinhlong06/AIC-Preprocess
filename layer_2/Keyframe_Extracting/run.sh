@@ -9,12 +9,12 @@
 #
 # Dùng:
 #   ./run.sh                         # pipeline_g, Docker
-#   ./run.sh all                     # chạy cả 4 pipeline
-#   ./run.sh pipeline_b --device cpu # truyền thêm flag CLI tuỳ ý
+#   ./run.sh all                     # chạy cả G và H
+#   ./run.sh pipeline_h --device cpu # truyền thêm flag CLI tuỳ ý
 #   MODE=host ./run.sh pipeline_g    # chạy python3 cli.py thẳng, không Docker
 #
 # Đổi dataset bằng env, phải là ĐƯỜNG DẪN TUYỆT ĐỐI vì chúng được docker mount
-# (run_shards_batch1.sh dùng cách này):
+# (run_shards.sh dùng cách này):
 #   VIDEO_DIR, SHOTS_SRC, SHOTS_SPLIT_DIR, OUTPUT_DIR, GT_DIR
 #
 # Mọi tham số sau tên pipeline được chuyển thẳng cho cli.py.
@@ -28,8 +28,8 @@ PIPELINE="${1:-pipeline_g}"; shift || true
 MODE="${MODE:-docker}"          # docker | host
 IMAGE="${IMAGE:-ai26-layer2}"
 
-# Mặc định = batch2 (video prefix K). run_shards_batch1.sh override cả 4 biến này
-# để trỏ sang dataset_batch1 mà không phải nhân bản script.
+# Mặc định = batch2 (video prefix K). run_shards.sh override cả 4 biến này để trỏ
+# sang dataset_batch1 mà không phải nhân bản script.
 VIDEO_DIR_HOST="${VIDEO_DIR:-$PROJECT_ROOT/dataset/video}"
 GT_DIR_HOST="${GT_DIR:-$PROJECT_ROOT/dataset/gt_keyframes}"
 SHOTS_SRC="${SHOTS_SRC:-$PROJECT_ROOT/layer_1/shots.jsonl}"

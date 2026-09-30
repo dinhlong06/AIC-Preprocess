@@ -16,11 +16,9 @@ hiệu đính dấu ngay trong từng frame (`ocr/corrector.py`). Stage 3
 OCR/
 ├── run_paddle.py         # CLI entry point, stage 1
 ├── run_paddle.sh          # build+run stage 1 in Docker, picks the freest GPU
-├── run_paddle_batch1.sh         # batch1, 1 GPU
 ├── run_paddle_batch1_shards.sh  # batch1, nhiều shard/GPU
 ├── run_vlm_correct.py    # CLI entry point, stage 3
 ├── run_vlm_correct.sh          # build+run stage 3 in Docker (image OCR_v2/Dockerfile.vllm)
-├── run_vlm_correct_resilient.sh # stage 3, retry dài hạn
 ├── merge_recognizers.py  # CPU: gộp output 2 recognizer, re-decide box gộp chữ
 ├── config.yaml           # settings của stage 1 và stage 3
 ├── requirements.txt
@@ -45,8 +43,9 @@ OCR/
 
 ```bash
 ./run_paddle.sh                       # build image, chọn GPU rảnh nhất, chạy
-./run_paddle.sh --input /path/frames # chạy thư mục keyframe khác
-NSHARDS=4 ./run_paddle_batch1_shards.sh shots   # chạy nhiều GPU
+FRAMES_DIR=/path ./run_paddle.sh   # chạy thư mục keyframe khác
+OUTPUT_DIR=/path ./run_paddle.sh   # ghi JSON ra chỗ khác
+NSHARDS=4 ./run_paddle_batch1_shards.sh   # chạy nhiều GPU, có add/status/merge
 ```
 
 Output: `output/output_vietocr.json`, `output/output_paddle_origin.json` (tuỳ
@@ -62,7 +61,7 @@ python merge_recognizers.py --config config.yaml
 
 ```bash
 ./run_vlm_correct.sh                  # dựng image từ ../OCR_v2/Dockerfile.vllm
-./run_vlm_correct_resilient.sh        # chạy lâu, tự retry
+MAX_ATTEMPTS=15 ./run_vlm_correct.sh # tự thử lại khi container chết sớm
 ```
 
 Input là output của `merge_recognizers.py`, không phải output thô của Paddle.

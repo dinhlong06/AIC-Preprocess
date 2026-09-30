@@ -2,9 +2,12 @@
 # Build + chạy OCR stage 1 (PaddleOCR PP-OCRv6, GPU) trong Docker.
 #
 # Cách dùng:
-#   ./run_paddle.sh                        # chạy full mọi video trong $PIPELINE
-#   FRAMES_DIR=/path/khac ./run_paddle.sh    # đổi thư mục keyframe nguồn
+#   ./run_paddle.sh                        # chạy full mọi video trong $FRAMES_DIR
 #   ./run_paddle.sh --limit 60             # mọi flag thừa đều forward cho run_paddle.py
+#
+# Env:
+#   FRAMES_DIR   thư mục keyframe nguồn
+#   OUTPUT_DIR   nơi ghi JSON (mặc định ./output)
 #
 # Input: layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g/ -- loader.py quét đệ quy
 # nên tự gộp mọi video trong đó (frame_id đã unique toàn cục, không lo trùng).
@@ -21,7 +24,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 IMAGE_NAME="ocr-paddle"
 FRAMES_DIR="${FRAMES_DIR:-$PROJECT_ROOT/layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g}"
-OUTPUT_DIR="$SCRIPT_DIR/output"
+OUTPUT_DIR="${OUTPUT_DIR:-$SCRIPT_DIR/output}"
 mkdir -p "$OUTPUT_DIR" "$SCRIPT_DIR/cache/paddlex" "$SCRIPT_DIR/cache/torch"
 
 GPU_ID="${GPU_ID:-$(nvidia-smi --query-gpu=index,memory.free --format=csv,noheader,nounits \
