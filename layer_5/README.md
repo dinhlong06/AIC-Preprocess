@@ -1,39 +1,5 @@
 # Layer 5 — Indexing + Search API
 
-## Running on a shared machine: you need `docker-compose.override.yaml`
-
-**That file is NOT in git** (`.gitignore`d — it only has meaning on this one
-machine). Compose auto-loads it on top of `docker-compose.yaml` (no `-f` flag
-needed); on this shared machine with rootless Docker the stack **does not come
-up without it**. If you clone the repo onto a shared machine, recreate the file
-from these five constraints:
-
-1. **Ports** — 9200 is already taken by someone else's Elasticsearch 7.17, and
-   19530/9000/8000 are occupied too. The override remaps the host side to
-   19201/19531/27018/8021; ports inside the compose network stay unchanged so no
-   code has to change. It uses the `!override` tag because by default compose
-   **appends to** the `ports` list of the base file instead of replacing it.
-2. **Volumes** — bind-mounting `./volumes/*` does not work with rootless: ES
-   (uid 1000) and Mongo (uid 999) map to a subuid with no write permission on
-   vannk's directory, and they die with *"failed to obtain node locks"* /
-   *"chown: Operation not permitted"*. Named volumes let Docker manage the
-   permissions itself.
-3. **ES disk threshold** — the host's `/` is 98% full (~32GB left), below ES 9's
-   default `max_headroom` of 150GB → it cannot allocate any shard, the cluster
-   stays RED and every index-creation command hangs. Must set
-   `cluster.routing.allocation.disk.threshold_enabled: false`.
-4. **Heap** — the 512MB default gives a low `max_clause_count` ceiling, so long
-   OCR queries with fuzziness fail with 400 *"too many clauses"*. Raise to
-   `-Xmx2g`.
-5. **CORS** — the base file only allows `http://localhost:8081`, but elasticvue
-   has moved to 8084, so the browser is blocked. Elasticvue calls ES *from the
-   browser*, so the origin changes with how you open the UI (localhost through
-   an ssh-forward, or the server IP) → allow them all. It must be the regex
-   `"/.*/"` rather than `"*"`: ES writes env vars into overrides.yml, where a
-   bare `*` is parsed by YAML as an alias → ES dies on startup.
-
-A dedicated machine works with the base `docker-compose.yaml` alone.
-
 ## For the algorithm team (read the data, install nothing on the host)
 
 Do **not** `pip install` anything on the host (it is a shared server). Mount the
