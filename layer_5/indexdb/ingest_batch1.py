@@ -4,12 +4,12 @@
         --keyframes-dir /path/pipeline_g \\
         [--ocr layer_3/OCR_gemma/gemma_ocr_batch1.jsonl] \\
         [--captions 'layer_3/OCR_gemma/*_caption_batch1.jsonl'] \\
-        [--ocr-api layer_3/OCR/output_batch1_v2/output_vlm_corrected.json] \\
+        [--ocr-api /path/ocr_đã_hiệu_đính.json] \\
         --siglip2-dir siglip/artifacts/siglip_batch1 \\
         [--videos L21_V001 ...]
 
 Nguồn metadata: keyframes.jsonl từ pipeline_g (keyframe extraction output).
-Nguồn embedding: SigLIP2 SO400M (1152d) từ siglip/artifacts/siglip_batch1/.
+Nguồn embedding: SigLIP2 SO400M (1152d) từ siglip/artifacts/siglip_batch1_v2/.
 frame_id = keyframe_id = SigLIP2 embedding ID (L21_V001_000000_kf0001).
 """
 import argparse
@@ -151,7 +151,7 @@ def main():
                     help="OCR Gemma, jsonl (nhận glob) của layer_3/OCR_gemma/gemma_ocr.py --task ocr")
     ap.add_argument("--captions", nargs="*", default=[],
                     help="caption, jsonl của layer_3/OCR_gemma/gemma_ocr.py --task caption (UIT + AI Studio chia nhau)")
-    ap.add_argument("--ocr-api", help="đường dẫn output đã hiệu đính (vd output_vlm_corrected.json)")
+    ap.add_argument("--ocr-api", help="JSON OCR đã hiệu đính, ghi vào field ocr_api")
     ap.add_argument("--objects", help="đường dẫn detections.json")
     ap.add_argument("--siglip2-dir", required=True,
                     help="thư mục SigLIP2 batch1 ({video_id}.npy + {video_id}_ids.json, 1152 chiều)")

@@ -123,7 +123,7 @@ def search_vector(req: SearchVectorRequest, reader: Reader = Depends(get_reader)
 @app.post(
     "/search/ocr", dependencies=[Depends(require_api_key)],
     summary="Tìm theo chữ trong khung hình (OCR)",
-    description="Match trên `ocr_text` (PaddleOCR gốc) + `ocr_api` (đã hiệu đính). Score là BM25.",
+    description="Match trên `ocr_text` (PaddleOCR) + `ocr_api` (đã hiệu đính). Score là BM25.",
 )
 def search_ocr(req: SearchQueryRequest, reader: Reader = Depends(get_reader)):
     return reader.search_ocr(req.query, top_k=req.top_k, video_ids=req.video_ids, frame_ids=req.frame_ids)

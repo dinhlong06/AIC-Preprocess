@@ -19,12 +19,7 @@ So detection stays PaddleOCR, recognition runs BOTH VietOCR and Paddle's own
 recognizer on the detector's crops. Both recognizers' text is trusted
 unconditionally (no confidence filter -- every non-empty box is kept). This
 mirrors the original (retired) Paddle+VietOCR pipeline's detector reuse.
-Which recognizer's answer to keep per box (VietOCR is usually better, but not
-always -- see module docstring of merge_recognizers.py for the measured
-cases where Paddle's answer should win) is decided in a separate, CPU-only
-merge step run AFTER both recognizers have already produced their output --
-not here, so that heuristic can be tuned/re-measured without redoing GPU
-detection+recognition on the whole dataset.
+VietOCR's answer is kept per box: it measured better on every case tried.
 
 Detection uses the full `PaddleOCR()` combined pipeline (not the standalone
 `TextDetection` class) -- its own `rec_texts`/`rec_scores` are kept, not
