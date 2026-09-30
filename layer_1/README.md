@@ -52,3 +52,9 @@ Defaults point at batch2; for batch1:
   `FORCE=1`.
 - Model weights live in `cache/huggingface` (bind-mounted, not baked into the
   image); first run downloads them.
+- **TransNetV2 is vendored** in `transnetv2/inference` (~35MB, code + TF
+  weights). The upstream repo `soCzech/TransNetV2` stores its weights in GitHub
+  LFS and has exhausted its LFS budget, so `git clone` no longer yields real
+  weights — a fresh `docker build` would break. The vendored copy was extracted
+  from a working image; it is only the `inference` folder, which is all this
+  layer uses.

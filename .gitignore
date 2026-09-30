@@ -47,6 +47,7 @@ batch1/
 *.npz
 *.faiss
 *.index
+!layer_1/transnetv2/**/*.index
 *.h5
 *.jsonl
 *.zip
