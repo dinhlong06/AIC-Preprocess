@@ -5,7 +5,9 @@
 #   ./run_caption_batch1.sh <ocr_pid>
 set -euo pipefail
 cd "$(dirname "$0")"
-set -a; . ../../retrieval_system/.env; set +a
+set -a
+if [ -f .env ]; then . ./.env; fi
+set +a
 F=../../layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g
 ALL="ais26_caption_batch1.jsonl ais31_caption_batch1.jsonl gemma_caption_batch1.jsonl"
 

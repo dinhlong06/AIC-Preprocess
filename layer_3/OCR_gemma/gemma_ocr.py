@@ -18,6 +18,15 @@ import argparse, base64, glob, json, os, random, shutil, ssl, threading, time, u
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+# .env cạnh script (KEY=VALUE), đọc trước khi model module đọc os.environ.
+# Biến đã export ra shell vẫn thắng (setdefault), không ghi đè.
+_env = Path(__file__).with_name(".env")
+if _env.is_file():
+    for _line in _env.read_text().splitlines():
+        if _line and not _line.startswith("#") and "=" in _line:
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
+
 # Qwen chạy trên GPU riêng: dồn caption sang đó khi Gemma đang bận OCR. Cả hai đều nghẽn ở server chứ
 # không ở số request (Gemma 1120: 16->40 song song chỉ 4.1->4.4 frame/s; Qwen ~1.3 frame/s ở 8 hay 16).
 # ais26/ais31: Gemma 4 trên Google AI Studio (GEMINI_API_KEY) -- quota riêng, chạy song song với UIT. Ảnh cố
