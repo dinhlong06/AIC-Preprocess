@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Đổi hiếm trước, đổi thường xuyên sau -> sửa src/ không phải copy lại checkpoint 1.4GB
 COPY checkpoint/ checkpoint/
-COPY unilm/ unilm/
+COPY beit3_src/ beit3_src/
 COPY configs/ configs/
 COPY cli.py .
 COPY README.md .
