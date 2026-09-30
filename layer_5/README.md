@@ -38,8 +38,10 @@ cd layer_5
 Extra flags pass straight to the ingester
 (`--keyframes-dir`, `--ocr`, `--captions`, `--siglip2-dir`, `--asr-segments`).
 
-The `api` service authenticates with `X-API-Key`; export `API_KEY` before
-`docker compose up`, otherwise every authenticated request gets a 401.
+The `api` service authenticates with `X-API-Key` (default `123`, override with
+`export API_KEY=...` before `docker compose up`). It is published on host port
+8021 (`docker compose port api 8000` shows the actual mapping — a local
+`docker-compose.override.yaml` can change every host port on shared machines).
 
 ## Folder structure
 

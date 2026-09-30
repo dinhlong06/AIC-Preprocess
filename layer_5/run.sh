@@ -16,9 +16,10 @@
 #   ./run.sh shell                     # python REPL đã nối sẵn 3 DB
 #
 # Mọi lệnh chạy code đều tự `docker build` trước, nên sửa code xong chạy được ngay.
-# Port host đã đổi trong docker-compose.override.yaml vì máy này dùng chung.
-# Service `api` (HTTP) chỉ auth đúng nếu bạn export API_KEY trước khi `docker compose up`;
-# nếu không, mọi request bị 401 (fail-closed) chứ compose không báo lỗi.
+# Port host đọc động qua `docker compose port` nên khớp cả khi có
+# docker-compose.override.yaml (bản local đổi port vì máy dùng chung).
+# `api` nhận key `x-api-key` mặc định `123`; đổi bằng `export API_KEY=...`
+# trước khi `docker compose up -d`.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -40,15 +41,24 @@ py() {
 case "${1:-}" in
 up)
     docker compose up -d
+    # port publish trên host (khớp override nếu có)
+    es_port=$(docker compose port elasticsearch 9200 | sed 's/.*://')
+    mv_port=$(docker compose port standalone 9091 | sed 's/.*://')
     echo "== Chờ healthy =="
+    healthy=""
     for i in $(seq 1 30); do
         sleep 5
-        es=$(curl -sf --max-time 3 http://127.0.0.1:19201/_cluster/health > /dev/null && echo ok || true)
-        mv=$(curl -sf --max-time 3 http://127.0.0.1:19091/healthz > /dev/null && echo ok || true)
-        [ "$es$mv" = "okok" ] && { echo "   sẵn sàng sau $((i*5))s"; break; }
+        es=$(curl -sf --max-time 3 "http://127.0.0.1:$es_port/_cluster/health" > /dev/null && echo ok || true)
+        mv=$(curl -sf --max-time 3 "http://127.0.0.1:$mv_port/healthz" > /dev/null && echo ok || true)
+        [ "$es$mv" = "okok" ] && { healthy=1; echo "   sẵn sàng sau $((i*5))s"; break; }
         echo "   [$((i*5))s] ES=${es:-chưa} Milvus=${mv:-chưa}"
     done
-    echo "Attu (Milvus UI): http://localhost:8010    Elasticvue (ES UI): http://localhost:8084"
+    if [ -z "$healthy" ]; then
+        echo "   THẤT BẠI sau 150s -- xem thêm: docker compose logs --tail 50" >&2
+        exit 1
+    fi
+    echo "Attu (Milvus UI): http://localhost:$(docker compose port attu 3000 | sed 's/.*://')    Elasticvue (ES UI): http://localhost:$(docker compose port elasticvue 8080 | sed 's/.*://')"
+    echo "API: http://localhost:$(docker compose port api 8000 | sed 's/.*://')  (header x-api-key: ${API_KEY:-123})"
     ;;
 down)
     docker compose down
@@ -84,6 +94,10 @@ print("\nĐã nạp xong %d video: %s" % (len(done), ", ".join(sorted(done)[:5])
 PY
     ;;
 test)
+    if [ ! -d tests ]; then
+        echo "Không có tests/ trong bản clone này (git-ignored) -- copy từ máy dev hoặc bỏ qua."
+        exit 0
+    fi
     docker build -q -t "$IMAGE" . > /dev/null
     docker run --rm --network milvus "${DB_ENV[@]}" "$IMAGE" \
         python -m pytest -q -p no:cacheprovider --basetemp=/tmp/pt
@@ -122,7 +136,7 @@ r = Reader(cfg)
 print('Sẵn: r (Reader), s (mongo), es (elastic), mv (milvus). VD: r.search_ocr(\"chợ hoa\")')"
     ;;
 *)
-    sed -n '2,20p' "$0"
+    sed -n '2,22p' "$0"
     exit 1
     ;;
 esac

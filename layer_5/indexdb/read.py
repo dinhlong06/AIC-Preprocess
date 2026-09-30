@@ -54,7 +54,7 @@ class Reader:
 
     def search_ocr(self, query: str, top_k: int = 100, video_ids: list[str] | None = None,
                    frame_ids: list[str] | None = None) -> list[dict]:
-        # multi_match cả ocr_text (PaddleOCR gốc) và ocr_api (đã hiệu đính) vì
+        # multi_match cả ocr_text (OCR Gemma gốc) và ocr_api (đã hiệu đính) vì
         # không biết trước nguồn nào khớp; fuzziness="AUTO" chịu lỗi chính tả OCR.
         # must=OR giữ nguyên recall (1 từ khớp là đủ vào candidate); should lặp lại
         # chính điều kiện đó với minimum_should_match="2<75%" + boost=5 làm điểm CỘNG

@@ -146,6 +146,9 @@ services:
       MONGO_URI: mongodb://root:rootpass@mongodb:27017
       ELASTICSEARCH_URI: http://elasticsearch:9200
       API_KEY: ${API_KEY:-123}
+    # 8000 trên host đã dành cho Attu nên API ra ngoài ở 8021
+    ports:
+      - "8021:8000"
     depends_on:
       - "standalone"
       - "mongodb"
