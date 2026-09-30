@@ -11,7 +11,6 @@ class Keyframe:
     video_id: str
     keyframe_id: str
     image_path: Path
-    timestamp_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
