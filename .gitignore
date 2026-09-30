@@ -71,7 +71,6 @@ retrieval_system/
 # Markdown notes (keep READMEs only)
 *.md
 !README*.md
-!CLAUDE.md
 
 # NFS stale-handle artifacts
 .nfs*
