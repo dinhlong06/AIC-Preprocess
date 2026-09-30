@@ -1,291 +1,0 @@
-== Build image ai26-layer1 ==
-#0 building with "default" instance using docker driver
-
-#1 [internal] load build definition from Dockerfile
-#1 transferring dockerfile: 2.40kB done
-#1 DONE 0.0s
-
-#2 [internal] load metadata for docker.io/tensorflow/tensorflow:2.13.0-gpu
-#2 DONE 0.3s
-
-#3 [internal] load .dockerignore
-#3 transferring context: 2B done
-#3 DONE 0.0s
-
-#4 [1/9] FROM docker.io/tensorflow/tensorflow:2.13.0-gpu@sha256:b4676741c491bff3d0f29c38c369281792c7d5c5bfa2b1aa93e5231a8d236323
-#4 DONE 0.0s
-
-#5 [internal] load build context
-#5 transferring context: 281B done
-#5 DONE 0.0s
-
-#6 exporting to image
-#6 exporting layers done
-#6 writing image sha256:3b240052e713457d1c8b72bfe4a7008a696cbcdcf7c9dbd5d8f79c2738b589ce done
-#6 naming to docker.io/library/ai26-layer1 done
-#6 DONE 0.0s
-== Chạy Layer 1 trên GPU 3 ==
-Sẽ xử lý 605 video: ['K01_V001.mp4', 'K01_V002.mp4', 'K01_V003.mp4', 'K01_V004.mp4', 'K01_V005.mp4', 'K01_V006.mp4', 'K01_V007.mp4', 'K01_V008.mp4', 'K01_V009.mp4', 'K01_V010.mp4', 'K01_V011.mp4', 'K01_V012.mp4', 'K01_V013.mp4', 'K01_V014.mp4', 'K01_V015.mp4', 'K01_V016.mp4', 'K01_V017.mp4', 'K01_V018.mp4', 'K01_V019.mp4', 'K01_V020.mp4', 'K01_V021.mp4', 'K01_V022.mp4', 'K01_V023.mp4', 'K01_V024.mp4', 'K01_V025.mp4', 'K01_V026.mp4', 'K01_V027.mp4', 'K01_V028.mp4', 'K01_V029.mp4', 'K01_V030.mp4', 'K01_V031.mp4', 'K02_V001.mp4', 'K02_V002.mp4', 'K02_V003.mp4', 'K02_V004.mp4', 'K02_V005.mp4', 'K02_V006.mp4', 'K02_V007.mp4', 'K02_V008.mp4', 'K02_V009.mp4', 'K02_V010.mp4', 'K02_V011.mp4', 'K02_V012.mp4', 'K02_V013.mp4', 'K02_V014.mp4', 'K02_V015.mp4', 'K02_V016.mp4', 'K02_V017.mp4', 'K02_V018.mp4', 'K02_V019.mp4', 'K02_V020.mp4', 'K02_V021.mp4', 'K02_V022.mp4', 'K02_V023.mp4', 'K02_V024.mp4', 'K02_V025.mp4', 'K02_V026.mp4', 'K02_V027.mp4', 'K02_V028.mp4', 'K02_V029.mp4', 'K02_V030.mp4', 'K02_V031.mp4', 'K03_V001.mp4', 'K03_V002.mp4', 'K03_V003.mp4', 'K03_V004.mp4', 'K03_V005.mp4', 'K03_V006.mp4', 'K03_V007.mp4', 'K03_V008.mp4', 'K03_V009.mp4', 'K03_V010.mp4', 'K03_V011.mp4', 'K03_V012.mp4', 'K03_V013.mp4', 'K03_V014.mp4', 'K03_V015.mp4', 'K03_V016.mp4', 'K03_V017.mp4', 'K03_V018.mp4', 'K03_V019.mp4', 'K03_V020.mp4', 'K03_V021.mp4', 'K03_V022.mp4', 'K03_V023.mp4', 'K03_V024.mp4', 'K03_V025.mp4', 'K03_V026.mp4', 'K03_V027.mp4', 'K03_V028.mp4', 'K03_V029.mp4', 'K04_V001.mp4', 'K04_V002.mp4', 'K04_V003.mp4', 'K04_V004.mp4', 'K04_V005.mp4', 'K04_V006.mp4', 'K04_V007.mp4', 'K04_V008.mp4', 'K04_V009.mp4', 'K04_V010.mp4', 'K04_V011.mp4', 'K04_V012.mp4', 'K04_V013.mp4', 'K04_V014.mp4', 'K04_V015.mp4', 'K04_V016.mp4', 'K04_V017.mp4', 'K04_V018.mp4', 'K04_V019.mp4', 'K04_V020.mp4', 'K04_V021.mp4', 'K04_V022.mp4', 'K04_V023.mp4', 'K04_V024.mp4', 'K04_V025.mp4', 'K04_V026.mp4', 'K04_V027.mp4', 'K04_V028.mp4', 'K04_V029.mp4', 'K04_V030.mp4', 'K05_V001.mp4', 'K05_V002.mp4', 'K05_V003.mp4', 'K05_V004.mp4', 'K05_V005.mp4', 'K05_V006.mp4', 'K05_V007.mp4', 'K05_V008.mp4', 'K05_V009.mp4', 'K05_V010.mp4', 'K05_V011.mp4', 'K05_V012.mp4', 'K05_V013.mp4', 'K05_V014.mp4', 'K05_V015.mp4', 'K05_V016.mp4', 'K05_V017.mp4', 'K05_V018.mp4', 'K05_V019.mp4', 'K05_V020.mp4', 'K05_V021.mp4', 'K05_V022.mp4', 'K05_V023.mp4', 'K05_V024.mp4', 'K05_V025.mp4', 'K05_V026.mp4', 'K05_V027.mp4', 'K05_V028.mp4', 'K05_V029.mp4', 'K05_V030.mp4', 'K05_V031.mp4', 'K06_V001.mp4', 'K06_V002.mp4', 'K06_V003.mp4', 'K06_V004.mp4', 'K06_V005.mp4', 'K06_V006.mp4', 'K06_V007.mp4', 'K06_V008.mp4', 'K06_V009.mp4', 'K06_V010.mp4', 'K06_V011.mp4', 'K06_V012.mp4', 'K06_V013.mp4', 'K06_V014.mp4', 'K06_V015.mp4', 'K06_V016.mp4', 'K06_V017.mp4', 'K06_V018.mp4', 'K06_V019.mp4', 'K06_V020.mp4', 'K06_V021.mp4', 'K06_V022.mp4', 'K06_V023.mp4', 'K06_V024.mp4', 'K06_V025.mp4', 'K06_V026.mp4', 'K06_V027.mp4', 'K06_V028.mp4', 'K06_V029.mp4', 'K06_V030.mp4', 'K06_V031.mp4', 'K07_V001.mp4', 'K07_V002.mp4', 'K07_V003.mp4', 'K07_V004.mp4', 'K07_V005.mp4', 'K07_V006.mp4', 'K07_V007.mp4', 'K07_V008.mp4', 'K07_V009.mp4', 'K07_V010.mp4', 'K07_V011.mp4', 'K07_V012.mp4', 'K07_V013.mp4', 'K07_V014.mp4', 'K07_V015.mp4', 'K07_V016.mp4', 'K07_V017.mp4', 'K07_V018.mp4', 'K07_V019.mp4', 'K07_V020.mp4', 'K07_V021.mp4', 'K07_V022.mp4', 'K07_V023.mp4', 'K07_V024.mp4', 'K07_V025.mp4', 'K07_V026.mp4', 'K07_V027.mp4', 'K07_V028.mp4', 'K07_V029.mp4', 'K07_V030.mp4', 'K07_V031.mp4', 'K08_V001.mp4', 'K08_V002.mp4', 'K08_V003.mp4', 'K08_V004.mp4', 'K08_V005.mp4', 'K08_V006.mp4', 'K08_V007.mp4', 'K08_V008.mp4', 'K08_V009.mp4', 'K08_V010.mp4', 'K08_V011.mp4', 'K08_V012.mp4', 'K08_V013.mp4', 'K08_V014.mp4', 'K08_V015.mp4', 'K08_V016.mp4', 'K08_V017.mp4', 'K08_V018.mp4', 'K08_V019.mp4', 'K08_V020.mp4', 'K08_V021.mp4', 'K08_V022.mp4', 'K08_V023.mp4', 'K08_V024.mp4', 'K08_V025.mp4', 'K08_V026.mp4', 'K08_V027.mp4', 'K08_V028.mp4', 'K08_V029.mp4', 'K08_V030.mp4', 'K09_V001.mp4', 'K09_V002.mp4', 'K09_V003.mp4', 'K09_V004.mp4', 'K09_V005.mp4', 'K09_V006.mp4', 'K09_V007.mp4', 'K09_V008.mp4', 'K09_V009.mp4', 'K09_V010.mp4', 'K09_V011.mp4', 'K09_V012.mp4', 'K09_V013.mp4', 'K09_V014.mp4', 'K09_V015.mp4', 'K09_V016.mp4', 'K09_V017.mp4', 'K09_V018.mp4', 'K09_V019.mp4', 'K09_V020.mp4', 'K09_V021.mp4', 'K09_V022.mp4', 'K09_V023.mp4', 'K09_V024.mp4', 'K09_V025.mp4', 'K09_V026.mp4', 'K09_V027.mp4', 'K09_V028.mp4', 'K10_V001.mp4', 'K10_V002.mp4', 'K10_V003.mp4', 'K10_V004.mp4', 'K10_V005.mp4', 'K10_V006.mp4', 'K10_V007.mp4', 'K10_V008.mp4', 'K10_V009.mp4', 'K10_V010.mp4', 'K10_V011.mp4', 'K10_V012.mp4', 'K10_V013.mp4', 'K10_V014.mp4', 'K10_V015.mp4', 'K10_V016.mp4', 'K10_V017.mp4', 'K10_V018.mp4', 'K10_V019.mp4', 'K10_V020.mp4', 'K10_V021.mp4', 'K10_V022.mp4', 'K10_V023.mp4', 'K10_V024.mp4', 'K10_V025.mp4', 'K10_V026.mp4', 'K10_V027.mp4', 'K10_V028.mp4', 'K11_V001.mp4', 'K11_V002.mp4', 'K11_V003.mp4', 'K11_V004.mp4', 'K11_V005.mp4', 'K11_V006.mp4', 'K11_V007.mp4', 'K11_V008.mp4', 'K11_V009.mp4', 'K11_V010.mp4', 'K11_V011.mp4', 'K11_V012.mp4', 'K11_V013.mp4', 'K11_V014.mp4', 'K11_V015.mp4', 'K11_V016.mp4', 'K11_V017.mp4', 'K11_V018.mp4', 'K11_V019.mp4', 'K11_V020.mp4', 'K11_V021.mp4', 'K11_V022.mp4', 'K11_V023.mp4', 'K11_V024.mp4', 'K11_V025.mp4', 'K11_V026.mp4', 'K11_V027.mp4', 'K11_V028.mp4', 'K11_V029.mp4', 'K11_V030.mp4', 'K11_V031.mp4', 'K12_V001.mp4', 'K12_V002.mp4', 'K12_V003.mp4', 'K12_V004.mp4', 'K12_V005.mp4', 'K12_V006.mp4', 'K12_V007.mp4', 'K12_V008.mp4', 'K12_V009.mp4', 'K12_V010.mp4', 'K12_V011.mp4', 'K12_V012.mp4', 'K12_V013.mp4', 'K12_V014.mp4', 'K12_V015.mp4', 'K12_V016.mp4', 'K12_V017.mp4', 'K12_V018.mp4', 'K12_V019.mp4', 'K12_V020.mp4', 'K12_V021.mp4', 'K12_V022.mp4', 'K12_V023.mp4', 'K12_V024.mp4', 'K12_V025.mp4', 'K12_V026.mp4', 'K12_V027.mp4', 'K12_V028.mp4', 'K12_V029.mp4', 'K12_V030.mp4', 'K12_V031.mp4', 'K13_V001.mp4', 'K13_V002.mp4', 'K13_V003.mp4', 'K13_V004.mp4', 'K13_V005.mp4', 'K13_V006.mp4', 'K13_V007.mp4', 'K13_V008.mp4', 'K13_V009.mp4', 'K13_V010.mp4', 'K13_V011.mp4', 'K13_V012.mp4', 'K13_V013.mp4', 'K13_V014.mp4', 'K13_V015.mp4', 'K13_V016.mp4', 'K13_V017.mp4', 'K13_V018.mp4', 'K13_V019.mp4', 'K13_V020.mp4', 'K13_V021.mp4', 'K13_V022.mp4', 'K13_V023.mp4', 'K13_V024.mp4', 'K13_V025.mp4', 'K13_V026.mp4', 'K13_V027.mp4', 'K13_V028.mp4', 'K13_V029.mp4', 'K13_V030.mp4', 'K14_V001.mp4', 'K14_V002.mp4', 'K14_V003.mp4', 'K14_V004.mp4', 'K14_V005.mp4', 'K14_V006.mp4', 'K14_V007.mp4', 'K14_V008.mp4', 'K14_V009.mp4', 'K14_V010.mp4', 'K14_V011.mp4', 'K14_V012.mp4', 'K14_V013.mp4', 'K14_V014.mp4', 'K14_V015.mp4', 'K14_V016.mp4', 'K14_V017.mp4', 'K14_V018.mp4', 'K14_V019.mp4', 'K14_V020.mp4', 'K14_V021.mp4', 'K14_V022.mp4', 'K14_V023.mp4', 'K14_V024.mp4', 'K14_V025.mp4', 'K14_V026.mp4', 'K14_V027.mp4', 'K14_V028.mp4', 'K14_V029.mp4', 'K14_V030.mp4', 'K15_V001.mp4', 'K15_V002.mp4', 'K15_V003.mp4', 'K15_V004.mp4', 'K15_V005.mp4', 'K15_V006.mp4', 'K15_V007.mp4', 'K15_V008.mp4', 'K15_V009.mp4', 'K15_V010.mp4', 'K15_V011.mp4', 'K15_V012.mp4', 'K15_V013.mp4', 'K15_V014.mp4', 'K15_V015.mp4', 'K15_V016.mp4', 'K15_V017.mp4', 'K15_V018.mp4', 'K15_V019.mp4', 'K15_V020.mp4', 'K15_V021.mp4', 'K15_V022.mp4', 'K15_V023.mp4', 'K15_V024.mp4', 'K15_V025.mp4', 'K15_V026.mp4', 'K15_V027.mp4', 'K15_V028.mp4', 'K15_V029.mp4', 'K15_V030.mp4', 'K15_V031.mp4', 'K16_V001.mp4', 'K16_V002.mp4', 'K16_V003.mp4', 'K16_V004.mp4', 'K16_V005.mp4', 'K16_V006.mp4', 'K16_V007.mp4', 'K16_V008.mp4', 'K16_V009.mp4', 'K16_V010.mp4', 'K16_V011.mp4', 'K16_V012.mp4', 'K16_V013.mp4', 'K16_V014.mp4', 'K16_V015.mp4', 'K16_V016.mp4', 'K16_V017.mp4', 'K16_V018.mp4', 'K16_V019.mp4', 'K16_V020.mp4', 'K16_V021.mp4', 'K16_V022.mp4', 'K16_V023.mp4', 'K16_V024.mp4', 'K16_V025.mp4', 'K16_V026.mp4', 'K16_V027.mp4', 'K16_V028.mp4', 'K16_V029.mp4', 'K16_V030.mp4', 'K16_V031.mp4', 'K16_V032.mp4', 'K17_V001.mp4', 'K17_V002.mp4', 'K17_V003.mp4', 'K17_V004.mp4', 'K17_V005.mp4', 'K17_V006.mp4', 'K17_V007.mp4', 'K17_V008.mp4', 'K17_V009.mp4', 'K17_V010.mp4', 'K17_V011.mp4', 'K17_V012.mp4', 'K17_V013.mp4', 'K17_V014.mp4', 'K17_V015.mp4', 'K17_V016.mp4', 'K17_V017.mp4', 'K17_V018.mp4', 'K17_V019.mp4', 'K17_V020.mp4', 'K17_V021.mp4', 'K17_V022.mp4', 'K17_V023.mp4', 'K17_V024.mp4', 'K17_V025.mp4', 'K17_V026.mp4', 'K17_V027.mp4', 'K17_V028.mp4', 'K17_V029.mp4', 'K17_V030.mp4', 'K18_V001.mp4', 'K18_V002.mp4', 'K18_V003.mp4', 'K18_V004.mp4', 'K18_V005.mp4', 'K18_V006.mp4', 'K18_V007.mp4', 'K18_V008.mp4', 'K18_V009.mp4', 'K18_V010.mp4', 'K18_V011.mp4', 'K18_V012.mp4', 'K18_V013.mp4', 'K18_V014.mp4', 'K18_V015.mp4', 'K18_V016.mp4', 'K18_V017.mp4', 'K18_V018.mp4', 'K18_V019.mp4', 'K18_V020.mp4', 'K18_V021.mp4', 'K18_V022.mp4', 'K18_V023.mp4', 'K18_V024.mp4', 'K18_V025.mp4', 'K18_V026.mp4', 'K18_V027.mp4', 'K18_V028.mp4', 'K19_V001.mp4', 'K19_V002.mp4', 'K19_V003.mp4', 'K19_V004.mp4', 'K19_V005.mp4', 'K19_V006.mp4', 'K19_V007.mp4', 'K19_V008.mp4', 'K19_V009.mp4', 'K19_V010.mp4', 'K19_V011.mp4', 'K19_V012.mp4', 'K19_V013.mp4', 'K19_V014.mp4', 'K19_V015.mp4', 'K19_V016.mp4', 'K19_V017.mp4', 'K19_V018.mp4', 'K19_V019.mp4', 'K19_V020.mp4', 'K19_V021.mp4', 'K19_V022.mp4', 'K19_V023.mp4', 'K19_V024.mp4', 'K19_V025.mp4', 'K19_V026.mp4', 'K19_V027.mp4', 'K19_V028.mp4', 'K19_V029.mp4', 'K19_V030.mp4', 'K19_V031.mp4', 'K20_V001.mp4', 'K20_V002.mp4', 'K20_V003.mp4', 'K20_V004.mp4', 'K20_V005.mp4', 'K20_V006.mp4', 'K20_V007.mp4', 'K20_V008.mp4', 'K20_V009.mp4', 'K20_V010.mp4', 'K20_V011.mp4', 'K20_V012.mp4', 'K20_V013.mp4', 'K20_V014.mp4', 'K20_V015.mp4', 'K20_V016.mp4', 'K20_V017.mp4', 'K20_V018.mp4', 'K20_V019.mp4', 'K20_V020.mp4', 'K20_V021.mp4', 'K20_V022.mp4', 'K20_V023.mp4', 'K20_V024.mp4', 'K20_V025.mp4', 'K20_V026.mp4', 'K20_V027.mp4', 'K20_V028.mp4', 'K20_V029.mp4', 'K20_V030.mp4', 'K20_V031.mp4']
-Bỏ qua Shot Detection theo --skip_shots.
-=== Layer 1: PhoWhisper ASR (vinai/PhoWhisper-large) + Silero VAD ===
-Model Silero VAD đã load.
-/usr/local/lib/python3.8/dist-packages/torch/_utils.py:831: UserWarning: TypedStorage is deprecated. It will be removed in the future and UntypedStorage will be the only storage class. This should only matter to you if you are using storages directly.  To access UntypedStorage directly, use tensor.untyped_storage() instead of tensor.storage()
-  return self.fget.__get__(instance, owner)()
-Model vinai/PhoWhisper-large đã load.
-Đã có 245 video transcribe từ trước, sẽ bỏ qua: ['K01_V001', 'K01_V003', 'K01_V005', 'K01_V007', 'K01_V009', 'K01_V011', 'K01_V013', 'K01_V015', 'K01_V017', 'K01_V019', 'K01_V021', 'K01_V023', 'K01_V025', 'K01_V027', 'K01_V029', 'K01_V031', 'K02_V002', 'K02_V004', 'K02_V006', 'K02_V008', 'K02_V010', 'K02_V012', 'K02_V014', 'K02_V016', 'K02_V018', 'K02_V020', 'K02_V022', 'K02_V024', 'K02_V026', 'K02_V028', 'K02_V030', 'K03_V001', 'K03_V003', 'K03_V005', 'K03_V007', 'K03_V009', 'K03_V011', 'K03_V013', 'K03_V015', 'K03_V017', 'K03_V019', 'K03_V021', 'K03_V023', 'K03_V025', 'K03_V027', 'K03_V029', 'K04_V002', 'K04_V004', 'K04_V006', 'K04_V008', 'K04_V010', 'K04_V012', 'K04_V014', 'K04_V016', 'K04_V018', 'K04_V020', 'K04_V022', 'K04_V024', 'K04_V026', 'K04_V028', 'K04_V030', 'K05_V002', 'K05_V004', 'K05_V006', 'K05_V008', 'K05_V010', 'K05_V012', 'K05_V014', 'K05_V016', 'K05_V018', 'K05_V020', 'K05_V022', 'K05_V024', 'K05_V026', 'K05_V028', 'K05_V030', 'K06_V001', 'K06_V003', 'K06_V005', 'K06_V007', 'K06_V009', 'K06_V011', 'K06_V013', 'K06_V015', 'K06_V017', 'K06_V019', 'K06_V021', 'K06_V023', 'K06_V025', 'K06_V027', 'K06_V029', 'K06_V031', 'K07_V002', 'K07_V004', 'K07_V006', 'K07_V008', 'K07_V010', 'K07_V012', 'K07_V014', 'K07_V016', 'K07_V018', 'K07_V020', 'K07_V022', 'K07_V024', 'K07_V026', 'K07_V028', 'K07_V030', 'K08_V001', 'K08_V003', 'K08_V005', 'K08_V007', 'K08_V009', 'K08_V011', 'K08_V013', 'K08_V015', 'K08_V017', 'K08_V019', 'K08_V021', 'K08_V023', 'K08_V025', 'K08_V027', 'K08_V029', 'K09_V001', 'K09_V003', 'K09_V005', 'K09_V007', 'K09_V009', 'K09_V011', 'K09_V013', 'K09_V015', 'K09_V017', 'K09_V019', 'K09_V021', 'K09_V023', 'K09_V025', 'K09_V027', 'K10_V001', 'K10_V003', 'K10_V005', 'K10_V007', 'K10_V009', 'K10_V011', 'K10_V013', 'K10_V015', 'K10_V017', 'K10_V019', 'K10_V021', 'K10_V023', 'K10_V025', 'K10_V027', 'K11_V001', 'K11_V003', 'K11_V005', 'K11_V007', 'K11_V009', 'K11_V011', 'K11_V013', 'K11_V015', 'K11_V017', 'K11_V019', 'K11_V021', 'K11_V023', 'K11_V025', 'K11_V027', 'K11_V029', 'K11_V031', 'K12_V002', 'K12_V004', 'K12_V006', 'K12_V008', 'K12_V010', 'K12_V012', 'K12_V014', 'K12_V016', 'K12_V018', 'K12_V020', 'K12_V022', 'K12_V024', 'K12_V026', 'K12_V028', 'K12_V030', 'K13_V001', 'K13_V003', 'K13_V005', 'K13_V007', 'K13_V009', 'K13_V011', 'K13_V013', 'K13_V015', 'K13_V017', 'K13_V019', 'K13_V021', 'K13_V023', 'K13_V025', 'K13_V027', 'K13_V029', 'K14_V001', 'K14_V003', 'K14_V005', 'K14_V007', 'K14_V009', 'K14_V011', 'K14_V013', 'K14_V015', 'K14_V017', 'K14_V019', 'K14_V021', 'K14_V023', 'K14_V025', 'K14_V027', 'K14_V029', 'K15_V001', 'K15_V003', 'K15_V005', 'K15_V007', 'K15_V009', 'K15_V011', 'K15_V013', 'K15_V015', 'K15_V017', 'K15_V019', 'K15_V021', 'K15_V023', 'K15_V025', 'K15_V027', 'K15_V029', 'K15_V031', 'K16_V002', 'K16_V004', 'K16_V006', 'K16_V008', 'K16_V010', 'K16_V012', 'K16_V014', 'K16_V016', 'K16_V018', 'K16_V020', 'K16_V022', 'K16_V024', 'K16_V026', 'K16_V028', 'K16_V030', 'K16_V032', 'K17_V002', 'K17_V004']
-PhoWhisper:   0%|          | 0/605 [00:00<?, ?it/s]PhoWhisper:  27%|██▋       | 162/605 [00:00<00:00, 1617.30it/s]PhoWhisper:  67%|██████▋   | 406/605 [00:00<00:00, 2094.50it/s]  Đang transcribe K16_V029.mp4...
-PhoWhisper:  67%|██████▋   | 406/605 [00:20<00:00, 2094.50it/s]/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-Due to a bug fix in https://github.com/huggingface/transformers/pull/28687 transcription using a multilingual Whisper will default to language detection followed by transcription instead of translation to English.This might be a breaking change for your use case. If you want to instead always translate your audio to English, make sure to pass `language='en'`.
-Passing a tuple of `past_key_values` is deprecated and will be removed in Transformers v4.43.0. You should pass an instance of `EncoderDecoderCache` instead, e.g. `past_key_values=EncoderDecoderCache.from_legacy_cache(past_key_values)`.
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 112 segment cho K16_V029
-PhoWhisper:  80%|███████▉  | 482/605 [03:31<01:19,  1.54it/s]    Đang transcribe K17_V003.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 134 segment cho K17_V003
-PhoWhisper:  81%|████████  | 488/605 [07:26<03:11,  1.64s/it]  Đang transcribe K17_V006.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 120 segment cho K17_V006
-PhoWhisper:  81%|████████  | 491/605 [10:45<05:18,  2.79s/it]  Đang transcribe K17_V008.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 111 segment cho K17_V008
-PhoWhisper:  81%|████████▏ | 493/605 [14:13<08:23,  4.50s/it]  Đang transcribe K17_V010.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 105 segment cho K17_V010
-PhoWhisper:  82%|████████▏ | 495/605 [17:28<12:15,  6.68s/it]  Đang transcribe K17_V012.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 141 segment cho K17_V012
-PhoWhisper:  82%|████████▏ | 497/605 [21:19<18:22, 10.21s/it]  Đang transcribe K17_V014.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 97 segment cho K17_V014
-PhoWhisper:  82%|████████▏ | 499/605 [23:53<23:16, 13.18s/it]  Đang transcribe K17_V016.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 119 segment cho K17_V016
-PhoWhisper:  83%|████████▎ | 501/605 [27:03<31:16, 18.04s/it]  Đang transcribe K17_V017.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 105 segment cho K17_V017
-PhoWhisper:  83%|████████▎ | 502/605 [29:49<41:16, 24.05s/it]  Đang transcribe K17_V019.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 104 segment cho K17_V019
-PhoWhisper:  83%|████████▎ | 504/605 [33:03<53:20, 31.68s/it]  Đang transcribe K17_V021.mp4...
-You seem to be using the pipelines sequentially on GPU. In order to maximize efficiency please use a dataset
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 117 segment cho K17_V021
-PhoWhisper:  84%|████████▎ | 506/605 [36:29<1:07:28, 40.89s/it]  Đang transcribe K17_V023.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 107 segment cho K17_V023
-PhoWhisper:  84%|████████▍ | 508/605 [40:20<1:25:04, 52.63s/it]  Đang transcribe K17_V025.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 83 segment cho K17_V025
-PhoWhisper:  84%|████████▍ | 510/605 [43:22<1:34:21, 59.60s/it]  Đang transcribe K17_V027.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 103 segment cho K17_V027
-PhoWhisper:  85%|████████▍ | 512/605 [46:17<1:41:20, 65.38s/it]  Đang transcribe K17_V029.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 107 segment cho K17_V029
-PhoWhisper:  85%|████████▍ | 514/605 [49:06<1:45:40, 69.67s/it]  Đang transcribe K18_V001.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 110 segment cho K18_V001
-PhoWhisper:  85%|████████▌ | 516/605 [52:24<1:54:11, 76.98s/it]  Đang transcribe K18_V003.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 119 segment cho K18_V003
-PhoWhisper:  86%|████████▌ | 518/605 [55:46<2:00:32, 83.13s/it]  Đang transcribe K18_V005.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 121 segment cho K18_V005
-PhoWhisper:  86%|████████▌ | 520/605 [59:32<2:09:21, 91.31s/it]  Đang transcribe K18_V007.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 109 segment cho K18_V007
-PhoWhisper:  86%|████████▋ | 522/605 [1:02:41<2:07:24, 92.10s/it]  Đang transcribe K18_V008.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 93 segment cho K18_V008
-PhoWhisper:  86%|████████▋ | 523/605 [1:05:35<2:24:35, 105.80s/it]  Đang transcribe K18_V010.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 111 segment cho K18_V010
-PhoWhisper:  87%|████████▋ | 525/605 [1:09:15<2:22:45, 107.06s/it]  Đang transcribe K18_V012.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 122 segment cho K18_V012
-PhoWhisper:  87%|████████▋ | 527/605 [1:12:53<2:20:00, 107.70s/it]  Đang transcribe K18_V014.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 97 segment cho K18_V014
-PhoWhisper:  87%|████████▋ | 529/605 [1:16:44<2:19:26, 110.09s/it]  Đang transcribe K18_V016.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 114 segment cho K18_V016
-PhoWhisper:  88%|████████▊ | 531/605 [1:20:50<2:20:40, 114.06s/it]  Đang transcribe K18_V018.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 132 segment cho K18_V018
-PhoWhisper:  88%|████████▊ | 533/605 [1:25:18<2:24:09, 120.13s/it]  Đang transcribe K18_V020.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 88 segment cho K18_V020
-PhoWhisper:  88%|████████▊ | 535/605 [1:28:37<2:12:52, 113.89s/it]  Đang transcribe K18_V022.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 106 segment cho K18_V022
-PhoWhisper:  89%|████████▉ | 537/605 [1:32:19<2:08:03, 113.00s/it]  Đang transcribe K18_V024.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 104 segment cho K18_V024
-PhoWhisper:  89%|████████▉ | 539/605 [1:36:04<2:04:10, 112.88s/it]  Đang transcribe K18_V026.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 117 segment cho K18_V026
-PhoWhisper:  89%|████████▉ | 541/605 [1:39:47<1:59:56, 112.45s/it]  Đang transcribe K18_V028.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 121 segment cho K18_V028
-PhoWhisper:  90%|████████▉ | 543/605 [1:43:39<1:57:16, 113.49s/it]  Đang transcribe K19_V002.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 110 segment cho K19_V002
-PhoWhisper:  90%|█████████ | 545/605 [1:47:10<1:51:11, 111.20s/it]  Đang transcribe K19_V004.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 121 segment cho K19_V004
-PhoWhisper:  90%|█████████ | 547/605 [1:51:36<1:53:50, 117.77s/it]  Đang transcribe K19_V006.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 158 segment cho K19_V006
-PhoWhisper:  91%|█████████ | 549/605 [1:56:03<1:54:15, 122.42s/it]  Đang transcribe K19_V009.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 137 segment cho K19_V009
-PhoWhisper:  91%|█████████ | 552/605 [2:00:25<1:36:00, 108.68s/it]  Đang transcribe K19_V011.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 109 segment cho K19_V011
-PhoWhisper:  92%|█████████▏| 554/605 [2:04:11<1:33:19, 109.79s/it]  Đang transcribe K19_V013.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 106 segment cho K19_V013
-PhoWhisper:  92%|█████████▏| 556/605 [2:08:09<1:31:48, 112.43s/it]  Đang transcribe K19_V014.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 110 segment cho K19_V014
-PhoWhisper:  92%|█████████▏| 557/605 [2:11:39<1:42:56, 128.68s/it]  Đang transcribe K19_V016.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 135 segment cho K19_V016
-PhoWhisper:  92%|█████████▏| 559/605 [2:15:59<1:38:56, 129.05s/it]  Đang transcribe K19_V018.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 112 segment cho K19_V018
-PhoWhisper:  93%|█████████▎| 561/605 [2:19:49<1:31:23, 124.63s/it]  Đang transcribe K19_V020.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 133 segment cho K19_V020
-PhoWhisper:  93%|█████████▎| 563/605 [2:24:16<1:29:14, 127.48s/it]  Đang transcribe K19_V022.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 129 segment cho K19_V022
-PhoWhisper:  93%|█████████▎| 565/605 [2:28:19<1:23:40, 125.51s/it]  Đang transcribe K19_V024.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 124 segment cho K19_V024
-PhoWhisper:  94%|█████████▎| 567/605 [2:31:43<1:14:56, 118.33s/it]  Đang transcribe K19_V026.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 125 segment cho K19_V026
-PhoWhisper:  94%|█████████▍| 569/605 [2:35:28<1:09:59, 116.65s/it]  Đang transcribe K19_V028.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 97 segment cho K19_V028
-PhoWhisper:  94%|█████████▍| 571/605 [2:38:56<1:03:53, 112.76s/it]  Đang transcribe K19_V030.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 160 segment cho K19_V030
-PhoWhisper:  95%|█████████▍| 573/605 [2:42:58<1:01:31, 115.35s/it]  Đang transcribe K20_V001.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 132 segment cho K20_V001
-PhoWhisper:  95%|█████████▌| 575/605 [2:46:50<57:46, 115.54s/it]    Đang transcribe K20_V003.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 91 segment cho K20_V003
-PhoWhisper:  95%|█████████▌| 577/605 [2:50:23<52:39, 112.83s/it]  Đang transcribe K20_V005.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 79 segment cho K20_V005
-PhoWhisper:  96%|█████████▌| 579/605 [2:52:59<44:18, 102.24s/it]  Đang transcribe K20_V007.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 113 segment cho K20_V007
-PhoWhisper:  96%|█████████▌| 581/605 [2:56:20<40:44, 101.85s/it]  Đang transcribe K20_V009.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 109 segment cho K20_V009
-PhoWhisper:  96%|█████████▋| 583/605 [2:59:52<37:46, 103.01s/it]  Đang transcribe K20_V011.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 94 segment cho K20_V011
-PhoWhisper:  97%|█████████▋| 585/605 [3:02:52<33:02, 99.15s/it]   Đang transcribe K20_V013.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 96 segment cho K20_V013
-PhoWhisper:  97%|█████████▋| 587/605 [3:05:59<29:13, 97.39s/it]  Đang transcribe K20_V015.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 118 segment cho K20_V015
-PhoWhisper:  97%|█████████▋| 589/605 [3:09:57<27:43, 103.96s/it]  Đang transcribe K20_V017.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 130 segment cho K20_V017
-PhoWhisper:  98%|█████████▊| 591/605 [3:13:42<24:51, 106.52s/it]  Đang transcribe K20_V019.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 115 segment cho K20_V019
-PhoWhisper:  98%|█████████▊| 593/605 [3:17:21<21:28, 107.34s/it]  Đang transcribe K20_V021.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 110 segment cho K20_V021
-PhoWhisper:  98%|█████████▊| 595/605 [3:20:37<17:26, 104.61s/it]  Đang transcribe K20_V023.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 85 segment cho K20_V023
-PhoWhisper:  99%|█████████▊| 597/605 [3:23:35<13:19, 99.88s/it]   Đang transcribe K20_V025.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 118 segment cho K20_V025
-PhoWhisper:  99%|█████████▉| 599/605 [3:26:35<09:41, 96.85s/it]  Đang transcribe K20_V026.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 108 segment cho K20_V026
-PhoWhisper:  99%|█████████▉| 600/605 [3:29:50<09:31, 114.32s/it]  Đang transcribe K20_V028.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 130 segment cho K20_V028
-PhoWhisper: 100%|█████████▉| 602/605 [3:33:46<05:46, 115.53s/it]  Đang transcribe K20_V031.mp4...
-/usr/local/lib/python3.8/dist-packages/transformers/models/whisper/generation_whisper.py:509: FutureWarning: The input name `inputs` is deprecated. Please make sure to use `input_features` instead.
-  warnings.warn(
-  -> Đã ghi 87 segment cho K20_V031
-PhoWhisper: 100%|██████████| 605/605 [3:36:14<00:00, 87.76s/it] PhoWhisper: 100%|██████████| 605/605 [3:36:14<00:00, 21.44s/it]
-Hoàn tất ASR. Tổng 6910 segment mới -> /data/output/whisper.jsonl
-
-=== XONG LAYER 1 (GPU) ===
-shots.jsonl   -> /data/output/shots.jsonl
-whisper.jsonl -> /data/output/whisper.jsonl
-Bước tiếp theo (Layer 2 - map transcript vào shot) chạy trên máy CPU/RAM bằng file cpu_map_transcript.py, KHÔNG chạy trên máy GPU này.

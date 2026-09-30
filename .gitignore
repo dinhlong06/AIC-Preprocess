@@ -68,7 +68,7 @@ search_module/
 layer_2/Keyframe_Extracting/unilm/
 retrieval_system/
 
-# Markdown notes (keep READMEs and CLAUDE.md)
+# Markdown notes (keep READMEs only)
 *.md
 !README*.md
 !CLAUDE.md
@@ -107,3 +107,9 @@ layer_1/batch1_greedy/
 *.docx
 cat_sample_*.json
 layer_3/OCR_gemma/*.tsv
+
+# Shard working dirs: claim file trùng tên video (K01_V001), log.txt, jsonl shard.
+# run_*.sh tự sinh lại lần chạy sau; claim chỉ sống trong 1 lần chạy.
+layer_1/shards/
+layer_1/batch1/shards/
+layer_2/Keyframe_Extracting/claims*/
