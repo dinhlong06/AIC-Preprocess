@@ -28,6 +28,9 @@ PIPELINE="${1:-pipeline_g}"; shift || true
 MODE="${MODE:-docker}"          # docker | host
 IMAGE="${IMAGE:-ai26-layer2}"
 
+# weight 1.5GB vượt 100MB/file nên không nằm trong git -- tải lúc thiếu (sha256 kiểm tra)
+[[ -f checkpoint/beit-3/beit3_large_patch16_224.pth ]] || ./download_weights.sh
+
 # Mặc định = batch2 (video prefix K). run_shards.sh override cả 4 biến này để trỏ
 # sang dataset_batch1 mà không phải nhân bản script.
 VIDEO_DIR_HOST="${VIDEO_DIR:-$PROJECT_ROOT/dataset/video}"

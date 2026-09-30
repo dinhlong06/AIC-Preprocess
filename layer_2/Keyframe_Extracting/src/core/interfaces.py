@@ -2,7 +2,7 @@
 interfaces.py — Abstract Base Class cho tất cả pipeline Keyframe Extraction.
 
 Thiết kế theo Interface Pattern:
-  - Mọi pipeline (A, B, C, D) đều phải kế thừa BaseKeyframeExtractor.
+  - Mọi pipeline đều phải kế thừa BaseKeyframeExtractor.
   - Runner và CLI chỉ giao tiếp qua interface này, không biết chi tiết pipeline.
   - Thêm pipeline mới chỉ cần tạo subclass, không sửa code cũ.
 """

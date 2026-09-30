@@ -11,8 +11,6 @@
 # keyframe giữa g và h chỉ đến từ text_prescan.
 
 keyframe:
-  pipeline: pipeline_h
-
   min_frame_distance: 5      # Khoảng cách tối thiểu 5 frame giữa 2 keyframe liên tiếp
 
   beit3:

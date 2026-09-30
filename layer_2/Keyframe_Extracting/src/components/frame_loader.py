@@ -3,7 +3,7 @@ frame_loader.py — Đọc frame từ video hoặc thư mục ảnh.
 
 Hỗ trợ hai chế độ theo spec KEYFRAME_EXTRACTING.md:
   Mode 1 — Standard: đọc frame từ [start_frame, end_frame] của video .mp4
-  Mode 2 — Experimental: đọc từ thư mục chứa ảnh frame (frame0001.jpg, ...)
+  Mode 2 — Experimental: đọc keyframe BTC cắt sẵn trong thư mục webp.
 
 Trả về list (frame_idx, numpy_array BGR).
 """
@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 import cv2
 import numpy as np
 from pathlib import Path
-from typing import Iterator, List, Tuple
+from typing import List, Tuple
 
 
 # Type alias: (frame_index_absolute, BGR_image)
@@ -60,13 +60,6 @@ class VideoFrameLoader:
             raise RuntimeError("VideoCapture chưa được mở. Gọi open() trước.")
         return self._cap.get(cv2.CAP_PROP_FPS) or 25.0
 
-    @property
-    def total_frames(self) -> int:
-        """Tổng số frame trong video."""
-        if self._cap is None:
-            raise RuntimeError("VideoCapture chưa được mở. Gọi open() trước.")
-        return int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
     def read_range(
         self,
         start_frame: int,
@@ -98,29 +91,6 @@ class VideoFrameLoader:
             if not ret:
                 break
             if (idx - start_frame) % stride == 0:
-                frames.append((idx, frame))
-
-        return frames
-
-    def read_indices(self, indices: List[int]) -> List[FrameTuple]:
-        """
-        Đọc các frame tại danh sách chỉ số cụ thể (random access).
-        Dùng sau DAKE để đọc đúng candidate frames.
-
-        Args:
-            indices : Danh sách frame index (tuyệt đối, đã sort tăng dần).
-
-        Returns:
-            List các (frame_idx, BGR image).
-        """
-        if self._cap is None:
-            raise RuntimeError("Gọi open() trước khi đọc frame.")
-
-        frames: List[FrameTuple] = []
-        for idx in sorted(indices):
-            self._cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-            ret, frame = self._cap.read()
-            if ret:
                 frames.append((idx, frame))
 
         return frames
@@ -177,38 +147,3 @@ class KeyframeDirLoader:
     def __exit__(self, *args) -> None:
         self._io.shutdown(cancel_futures=True)
         self._decode.shutdown()
-
-
-class ImageDirFrameLoader:
-    """
-    Đọc frame từ thư mục chứa ảnh (Mode 2 — Experimental).
-
-    Hỗ trợ tên file dạng: frame0001.jpg, frame_0001.jpg, 0001.jpg, ...
-    Sắp xếp theo thứ tự tên file (alphabetical → numeric nếu đặt tên đúng).
-    """
-
-    def __init__(self, frame_dir: Path):
-        """
-        Args:
-            frame_dir : Thư mục chứa ảnh frame (.jpg, .png).
-        """
-        self.frame_dir = Path(frame_dir)
-
-    def read_all(self) -> List[FrameTuple]:
-        """
-        Đọc tất cả ảnh trong thư mục theo thứ tự tên file.
-
-        Returns:
-            List các (frame_idx, BGR image) với frame_idx là thứ tự 0-based.
-        """
-        extensions = {".jpg", ".jpeg", ".png"}
-        files = sorted(
-            [f for f in self.frame_dir.iterdir() if f.suffix.lower() in extensions]
-        )
-        frames: List[FrameTuple] = []
-        for i, f in enumerate(files):
-            img = cv2.imread(str(f))
-            if img is not None:
-                frames.append((i, img))
-
-        return frames

@@ -1,1 +1,1 @@
-# Extractors sub-package: 5 pipeline implementations
+# Extractors sub-package: pipeline_g, pipeline_h

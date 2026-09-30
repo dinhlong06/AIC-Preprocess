@@ -702,7 +702,6 @@ class KeyframeBenchmarkRunner:
             )
             return EvalResult(
                 tp=0, fp=len(pred_paths), fn=len(gt_paths),
-                gt_best_similarities=[-1.0] * len(gt_paths),
             )
 
         print(

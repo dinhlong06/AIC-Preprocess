@@ -31,7 +31,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-_beit3_src = Path(__file__).resolve().parents[2] / "unilm" / "beit3"
+_beit3_src = Path(__file__).resolve().parents[2] / "beit3_src"
 if str(_beit3_src) not in sys.path:
     sys.path.insert(0, str(_beit3_src))
 
@@ -98,12 +98,6 @@ class PipelineH(BaseKeyframeExtractor):
     ):
         self.checkpoint_path = Path(checkpoint_path)
         self.spm_path = Path(spm_path)
-        self.candidate_ratio = candidate_ratio
-        self.window_size = window_size
-        self.min_frame_distance = min_frame_distance
-        self.similarity_threshold = similarity_threshold
-        self.redundancy_threshold = redundancy_threshold
-        self.peak_prominence_window = peak_prominence_window
         self.enable_transition = enable_transition
         self.max_history_size = max_history_size
         self.max_gap_frames = max_gap_frames
@@ -120,7 +114,6 @@ class PipelineH(BaseKeyframeExtractor):
         self._semantic_filter = SemanticFilter(
             similarity_threshold=similarity_threshold,
             min_frame_distance=min_frame_distance,
-            global_check=True,
             max_history_size=max_history_size,
             gap_decay_start_frames=gap_decay_start_frames,
             max_gap_frames=max_gap_frames,

@@ -45,8 +45,6 @@ class SemanticFilter:
             Mặc định 0.90 theo spec KEYFRAME_EXTRACTING.md.
         min_frame_distance       : Khoảng cách frame tối thiểu so với keyframe kế trước.
                                    Chỉ xem xét frame nếu cách keyframe trước ít nhất N frames. Mặc định 5.
-        global_check             : Nếu True, so sánh với TẤT CẢ keyframe đã chọn trước đó
-                                   thay vì chỉ keyframe kế trước. Tránh lặp lại cảnh cũ.
         max_history_size         : Số lượng embedding tối đa trong ring buffer lịch sử video.
                                    Ngăn memory growth O(N) trong video dài. Mặc định 512.
         gap_decay_start_frames    : Nếu khoảng cách frame_idx kể từ keyframe trước vượt
@@ -61,14 +59,12 @@ class SemanticFilter:
         self,
         similarity_threshold: float = 0.90,
         min_frame_distance: int = 5,
-        global_check: bool = True,
         max_history_size: int = 512,
         gap_decay_start_frames: int = 150,
         max_gap_frames: int = 300,
     ):
         self.threshold = similarity_threshold
         self.min_frame_distance = max(1, int(min_frame_distance))
-        self.global_check = global_check
         self.max_history_size = max_history_size
         self.gap_decay_start_frames = gap_decay_start_frames
         self.max_gap_frames = max_gap_frames
@@ -181,37 +177,3 @@ class SemanticFilter:
             return [], np.empty((0, embeddings.shape[1]), dtype=np.float32), forced_indices
 
         return selected_indices, np.stack(selected_embeddings), forced_indices
-
-    def filter_with_scores(
-        self,
-        frame_indices: List[int],
-        embeddings: np.ndarray,
-    ) -> Tuple[List[int], List[float]]:
-        """
-        Giống filter() nhưng trả thêm similarity score của từng frame bị loại.
-        Dùng cho debug và visualization.
-        """
-        if len(frame_indices) == 0:
-            return [], []
-
-        selected_indices: List[int] = [frame_indices[0]]
-        selected_embeddings: List[np.ndarray] = [embeddings[0]]
-        all_scores: List[float] = [-1.0]
-        last_selected = frame_indices[0]
-
-        for i in range(1, len(frame_indices)):
-            curr_idx = frame_indices[i]
-            if (curr_idx - last_selected) < self.min_frame_distance:
-                continue
-
-            emb = embeddings[i]
-            last_kf_emb = selected_embeddings[-1]
-            sim = float(np.dot(emb, last_kf_emb))
-            all_scores.append(sim)
-
-            if sim < self.threshold:
-                selected_indices.append(curr_idx)
-                selected_embeddings.append(emb)
-                last_selected = curr_idx
-
-        return selected_indices, all_scores

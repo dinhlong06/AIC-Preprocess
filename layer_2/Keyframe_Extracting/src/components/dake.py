@@ -55,28 +55,13 @@ class DAKESelector:
     # Public API
     # ------------------------------------------------------------------
 
-    def select_candidates(
-        self,
-        frames: List[Tuple[int, np.ndarray]],
-    ) -> List[int]:
-        """
-        Nhận vào list (frame_idx, BGR image) của một shot.
-        Trả về list frame_idx của các Candidate Frames (đã sort tăng dần).
-
-        Args:
-            frames : List (frame_idx, BGR image) — toàn bộ frame trong shot.
-
-        Returns:
-            List frame_idx là Candidate Frames, sort theo thứ tự thời gian.
-        """
-        return self.select_with_scores(frames)[0]
-
     def select_with_scores(
         self,
         frames: List[Tuple[int, np.ndarray]],
     ) -> Tuple[List[int], List[float], List[float]]:
         """
-        Giống select_candidates() nhưng trả thêm steepness và aggregated score.
+        Nhận vào list (frame_idx, BGR image) của một shot, trả về
+        (candidate_indices, steepness, aggregated).
 
         Pipeline G cần steepness (chọn transition peak) và aggregated (score-aware
         diversity NMS); tính lại chúng ở ngoài là encode JPEG lần hai cho cùng một

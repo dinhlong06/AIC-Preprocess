@@ -18,8 +18,6 @@
 #     code cứng trong pipeline_g.py, không có config bật/tắt
 
 keyframe:
-  pipeline: pipeline_g
-
   min_frame_distance: 5      # Khoảng cách tối thiểu 5 frame giữa 2 keyframe liên tiếp
 
   beit3:

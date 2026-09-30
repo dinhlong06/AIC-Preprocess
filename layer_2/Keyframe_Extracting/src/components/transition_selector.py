@@ -117,39 +117,3 @@ class TransitionAwareSelector:
 
         protected.update(accepted_frame_indices)
         return protected
-
-    def merge_protected_keyframes(
-        self,
-        candidate_indices: List[int],
-        candidate_embeddings: np.ndarray,
-        filtered_indices: List[int],
-        filtered_embeddings: np.ndarray,
-        protected_indices: Set[int],
-    ) -> Tuple[List[int], np.ndarray]:
-        """
-        Kết hợp các frame đã được lọc với các transition frame bắt buộc phải bảo vệ.
-
-        Args:
-            candidate_indices    : Tất cả candidate frame_idx ban đầu.
-            candidate_embeddings : Embedding của tất cả candidate.
-            filtered_indices     : Frame_idx sống sót sau Semantic / Diversity filter.
-            filtered_embeddings  : Embedding tương ứng của filtered_indices.
-            protected_indices    : Tập hợp frame_idx chuyển cảnh bắt giữ lại.
-
-        Returns:
-            Tuple (final_indices, final_embeddings) đã sort theo thứ tự thời gian.
-        """
-        if not protected_indices:
-            return filtered_indices, filtered_embeddings
-
-        final_map = {idx: emb for idx, emb in zip(filtered_indices, filtered_embeddings)}
-
-        # Thêm các protected indices chưa có
-        for idx, emb in zip(candidate_indices, candidate_embeddings):
-            if idx in protected_indices and idx not in final_map:
-                final_map[idx] = emb
-
-        sorted_indices = sorted(final_map.keys())
-        sorted_embeddings = np.stack([final_map[idx] for idx in sorted_indices])
-
-        return sorted_indices, sorted_embeddings

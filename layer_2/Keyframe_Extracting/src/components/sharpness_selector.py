@@ -79,9 +79,5 @@ class SharpnessReselector:
 
         return best_img
 
-    def _sharpness(self, img: np.ndarray) -> float:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        return float(cv2.Laplacian(gray, cv2.CV_64F).var())
-
     def _same_scene(self, gray_a: np.ndarray, gray_b: np.ndarray) -> bool:
         return float(np.mean(np.abs(gray_a - gray_b))) < self.max_pixel_diff

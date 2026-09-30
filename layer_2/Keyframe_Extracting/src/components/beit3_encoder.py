@@ -11,7 +11,7 @@ Checkpoint cần:
 
 Lưu ý về PYTHONPATH:
   Script phải được chạy từ thư mục Keyframe_Extractor/ với:
-    PYTHONPATH=unilm/beit3 python cli.py ...
+    PYTHONPATH=beit3_src python cli.py ...
   hoặc runner sẽ tự inject sys.path.
 """
 
@@ -91,7 +91,7 @@ class BEiT3Encoder:
         Gọi một lần trước khi encode.
         """
         # Inject beit3 source vào sys.path để import được
-        beit3_src = Path(__file__).resolve().parents[2] / "unilm" / "beit3"
+        beit3_src = Path(__file__).resolve().parents[2] / "beit3_src"
         if str(beit3_src) not in sys.path:
             sys.path.insert(0, str(beit3_src))
 

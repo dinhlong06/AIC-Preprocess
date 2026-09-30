@@ -42,10 +42,10 @@ Its job: shrink the frame set before encoding (keeps `candidate_ratio × total_f
 ## Directory layout
 
 ```
-Keyframe_Extractor/
+Keyframe_Extracting/
 ├── checkpoint/
 │   └── beit-3/
-│       ├── beit3_large_patch16_224.pth   ← BEiT-3 weights
+│       ├── beit3_large_patch16_224.pth   ← BEiT-3 weights (1.5 GB, ./download_weights.sh)
 │       └── beit3.spm                      ← SentencePiece tokenizer
 │
 ├── configs/
@@ -60,7 +60,7 @@ Keyframe_Extractor/
 │   │   └── metrics.py     ← Diversity, Coverage, Precision/Recall vs GT
 │   │
 │   ├── components/
-│   │   ├── frame_loader.py      ← Reads frames from video (Mode 1) or image dir (Mode 2)
+│   │   ├── frame_loader.py      ← Reads frames from video or pre-cut keyframe dirs
 │   │   ├── dake.py              ← DAKE: JPEG steepness → sliding window → top-k
 │   │   ├── beit3_encoder.py     ← BEiT-3 Large visual encoder (1024-dim CLS)
 │   │   ├── mobilenet_encoder.py ← MobileNetV3-Large, GT-evaluation only
@@ -73,8 +73,8 @@ Keyframe_Extractor/
 │       ├── pipeline_g.py  ← 7 stages, default
 │       └── pipeline_h.py  ← G + text_prescan
 │
-├── unilm/                 ← BEiT-3 repo (cloned from microsoft/unilm)
-│   └── beit3/
+├── beit3_src/               ← vendored BEiT-3 wrapper (microsoft/unilm, MIT)
+│   └── modeling_utils.py
 │
 ├── dataset/
 │   ├── raw_video/         ← Input .mp4 videos
@@ -85,7 +85,9 @@ Keyframe_Extractor/
 │   ├── pipeline_h/
 │   └── benchmark_summary.csv
 │
-├── cli.py                 ← Main entry point
+├── run.sh / run_shards.sh ← entry points (Docker)
+├── download_weights.sh    ← fetch beit3_large_patch16_224.pth (over GitHub's 100 MB limit)
+├── cli.py                 ← CLI (invoked inside the image by run.sh)
 └── requirements.txt
 ```
 
@@ -136,35 +138,23 @@ dataset/
 
 ### 2. Run Pipeline G (default)
 
+`run.sh` builds the Docker image, downloads the BEiT-3 weight if missing and
+splits the shared `shots.jsonl` per video. Paths default to the batch2 layout
+at project root; override with `VIDEO_DIR`, `SHOTS_SRC`, `OUTPUT_DIR` (absolute
+paths — they are mounted into the container).
+
 ```bash
-cd Keyframe_Extractor
-python cli.py --pipeline pipeline_g --video_dir dataset/raw_video
+./run.sh                    # pipeline_g in Docker
+./run.sh all                # G and H
+MODE=host ./run.sh pipeline_g   # host python3 (needs deps + weights installed)
+
+NSHARDS=3 ./run_shards.sh   # fan out across GPUs (add/drain/stop/watchdog)
 ```
 
-### 3. Run both G and H
+### 3. Override params via CLI (forwarded by run.sh)
 
 ```bash
-python cli.py --pipeline all --video_dir dataset/raw_video
-```
-
-### 4. Override params via CLI
-
-```bash
-python cli.py \
-  --pipeline pipeline_g \
-  --video_dir dataset/raw_video \
-  --shots_dir dataset/shots \
-  --output_dir benchmark \
-  --threshold 0.85 \
-  --candidate_ratio 0.05 \
-  --device cuda \
-  --batch_size 16
-```
-
-### 5. Use a YAML config file
-
-```bash
-python cli.py --config configs/pipeline_h.yaml --video_dir dataset/raw_video
+./run.sh pipeline_g --threshold 0.85 --candidate_ratio 0.05 --device cuda --batch_size 16
 ```
 
 ---

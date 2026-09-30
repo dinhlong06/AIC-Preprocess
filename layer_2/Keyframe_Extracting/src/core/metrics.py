@@ -4,7 +4,6 @@ metrics.py — Tính các chỉ số đánh giá chất lượng Keyframe Extrac
 Gồm hai nhóm metric:
   1. Unsupervised (luôn tính được, không cần Ground Truth):
        - Diversity Score: mức độ đa dạng giữa các keyframe trong cùng shot.
-       - Redundancy Score: ngược lại với Diversity.
        - Coverage Score: % thời lượng shot được đại diện bởi keyframe.
 
   2. Supervised (chỉ dùng khi có Ground Truth ảnh keyframe):
@@ -14,12 +13,12 @@ Gồm hai nhóm metric:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 
-from src.core.models import ShotKeyframes, ShotRecord
+from src.core.models import ShotRecord
 
 
 # ---------------------------------------------------------------------------
@@ -53,20 +52,6 @@ def compute_diversity_score(embeddings: np.ndarray) -> float:
 
     avg_sim = float(np.mean(pairwise_sims))
     return max(0.0, 1.0 - avg_sim)
-
-
-def compute_redundancy_score(embeddings: np.ndarray) -> float:
-    """
-    Redundancy Score = avg(cosine_similarity) giữa tất cả cặp keyframe.
-    Là nghịch đảo của Diversity Score.
-
-    Args:
-        embeddings : numpy array shape (N, D), đã L2-normalized.
-
-    Returns:
-        Redundancy score trong khoảng [0.0, 1.0].
-    """
-    return 1.0 - compute_diversity_score(embeddings)
 
 
 def compute_coverage_score(
@@ -122,7 +107,6 @@ class EvalResult:
         recall               : TP / (TP + FN)
         f1                   : Harmonic mean of Precision and Recall
         avg_matched_sim      : Trung bình cosine similarity của các cặp matched (0.0 nếu TP=0)
-        gt_best_similarities : similarity tốt nhất của từng GT (-1.0 nếu unmatched)
     """
     tp: int = 0
     fp: int = 0
@@ -131,7 +115,6 @@ class EvalResult:
     recall: float = 0.0
     f1: float = 0.0
     avg_matched_sim: float = 0.0
-    gt_best_similarities: List[float] = field(default_factory=list)
 
 
 def evaluate_with_ground_truth(
@@ -164,12 +147,7 @@ def evaluate_with_ground_truth(
     G = len(gt_embeddings)
 
     if P == 0 or G == 0:
-        return EvalResult(
-            tp=0, fp=P, fn=G,
-            precision=0.0, recall=0.0, f1=0.0,
-            avg_matched_sim=0.0,
-            gt_best_similarities=[-1.0] * G,
-        )
+        return EvalResult(tp=0, fp=P, fn=G)
 
     # Step 1 — Cosine similarity matrix (P × G)
     # Both arrays should be L2-normalized; use matmul for efficiency
@@ -186,7 +164,6 @@ def evaluate_with_ground_truth(
     # Step 3 — Greedy one-to-one assignment
     matched_pred = [False] * P
     matched_gt   = [False] * G
-    gt_best_sim  = [-1.0]  * G             # -1 = unmatched
     matched_sims: List[float] = []
 
     for p_idx, g_idx, sim in zip(rows, cols, sims):
@@ -194,7 +171,6 @@ def evaluate_with_ground_truth(
             continue
         matched_pred[p_idx] = True
         matched_gt[g_idx]   = True
-        gt_best_sim[g_idx]  = float(sim)
         matched_sims.append(float(sim))
 
     # Step 4 — Count TP, FP, FN
@@ -212,5 +188,4 @@ def evaluate_with_ground_truth(
         tp=tp, fp=fp, fn=fn,
         precision=precision, recall=recall, f1=f1,
         avg_matched_sim=avg_sim,
-        gt_best_similarities=gt_best_sim,
     )
