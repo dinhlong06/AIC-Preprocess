@@ -11,6 +11,10 @@ venv/
 # Milvus/Mongo/Elastic data volumes
 volumes/
 
+# Đổi port + named volume cho máy dùng chung / Docker rootless.
+# Chỉ có tác dụng trên một máy — 5 ràng buộc cụ thể ghi ở README.Docker.md.
+docker-compose.override.yaml
+
 # Jupyter
 .ipynb_checkpoints/
 
