@@ -1,53 +1,44 @@
 """
 pipeline.py -- orchestrator cho OCR stage 1
 
-run_paddle_pipeline: GPU detection+recognition (PaddleOCR PP-OCRv6), đã hiệu
+run_ocr_pipeline: GPU detection (DeepSolo) + recognition (PARSeq-VN), đã hiệu
 đính dấu tiếng Việt ngay trong từng frame qua corrector.correct_record_locally.
 
-Chia sẻ ý tưởng skip-heuristic (ported từ một pipeline Paddle+VietOCR cũ, đã
-bỏ): frame giống/near-giống frame trước thì dùng lại kết quả thay vì chạy
-lại inference (GPU).
+Frame giống/near-giống frame trước thì dùng lại kết quả thay vì chạy lại
+inference (GPU).
 """
 
 from __future__ import annotations
 
 import json
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 from tqdm import tqdm
 
 from . import frame_skip
 from .corrector import correct_record_locally
+from .deepsolo_engine import DeepSoloParseqEngine
 from .formatter import load_checkpoint, save_output
 from .loader import load_frames
-from .paddle_engine import PaddleEngine
 
 
-def _build_engine(engine_cfg: dict):
-    if engine_cfg.get("engine") == "deepsolo_parseq":
-        from .deepsolo_engine import DeepSoloParseqEngine
-
-        return DeepSoloParseqEngine(
-            det_threshold=engine_cfg.get("det_threshold", 0.15),
-            min_size=engine_cfg.get("min_size", 1080),
-        )
-    return PaddleEngine(
-        lang=engine_cfg.get("lang", "vi"),
-        ocr_version=engine_cfg.get("ocr_version"),
-        unclip_ratio=engine_cfg.get("unclip_ratio"),
+def _build_engine(engine_cfg: dict) -> DeepSoloParseqEngine:
+    return DeepSoloParseqEngine(
+        det_threshold=engine_cfg.get("det_threshold", 0.15),
+        min_size=engine_cfg.get("min_size", 1080),
     )
 
 
 def _process_video_frames(
     group: list[tuple[str, str]],
-    engine,
+    engine: DeepSoloParseqEngine,
     blur_thresh: float,
     preprocess: bool,
 ) -> tuple[list[dict], list[dict]]:
     """Run the same per-frame skip-heuristic + engine.run() loop as
-    run_paddle_pipeline, but scoped to one video's frames -- used by the
+    run_ocr_pipeline, but scoped to one video's frames -- used by the
     claims-dir path where each video is processed and checkpointed in
     isolation."""
     records: list[dict] = []
@@ -70,16 +61,15 @@ def _process_video_frames(
             continue
 
         source = frame_skip.preprocess(bgr) if preprocess else path
-        texts, texts_origin = engine.run(source)
+        texts, _ = engine.run(source)
         record = correct_record_locally({"frame_id": frame_id, "texts": texts})
-        record_origin = {"frame_id": frame_id, "texts": texts_origin}
         records.append(record)
-        records_origin.append(record_origin)
+        records_origin.append({"frame_id": frame_id, "texts": []})
 
     return records, records_origin
 
 
-def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dict) -> None:
+def _run_ocr_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dict) -> None:
     """Worker-pool mode for parallel shards: each video is claimed atomically
     (O_EXCL file create, safe across concurrent containers/NFS) before
     processing, and its result written to claims_dir/done/<video>.json.
@@ -89,7 +79,6 @@ def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dic
     skip_cfg: dict = cfg.get("skip", {})
     blur_thresh = skip_cfg.get("blur_threshold", 0.0)
     preprocess: bool = cfg.get("preprocess", False)
-    engine_cfg = cfg.get("ocr", {})
 
     claimed_dir = Path(claims_dir) / "claimed"
     done_dir = Path(claims_dir) / "done"
@@ -115,11 +104,13 @@ def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dic
             continue
 
         if engine is None:
-            engine = _build_engine(engine_cfg)
+            engine = _build_engine(cfg)
 
         records, records_origin = _process_video_frames(group, engine, blur_thresh, preprocess)
         done_marker = done_dir / f"{video_id}.json"
         tmp = done_marker.with_suffix(".json.tmp")
+        # Giữ schema {"vietocr", "paddle_origin"} cho tương thích với các file
+        # done cũ (batch2) -- "vietocr" ở đây là output PARSeq, origin luôn rỗng.
         tmp.write_text(
             json.dumps({"vietocr": records, "paddle_origin": records_origin}, ensure_ascii=False, indent=2),
             encoding="utf-8",
@@ -131,10 +122,9 @@ def _run_paddle_claimed(frames: list[tuple[str, str]], claims_dir: str, cfg: dic
           f"(rest already done or claimed by another shard).")
 
 
-def run_paddle_pipeline(cfg: dict) -> None:
+def run_ocr_pipeline(cfg: dict) -> None:
     input_dir: str = cfg["input_dir"]
     output_file: str = cfg["output_file"]
-    output_file_paddle_origin: str = cfg["output_file_paddle_origin"]
     limit: int = cfg.get("limit", 0) or None
     checkpoint_every: int = cfg.get("checkpoint_every", 0)
     skip_cfg: dict = cfg.get("skip", {})
@@ -146,31 +136,23 @@ def run_paddle_pipeline(cfg: dict) -> None:
     frames = load_frames(input_dir)[:limit] if limit else load_frames(input_dir)
 
     if claims_dir:
-        _run_paddle_claimed(frames, claims_dir, cfg)
+        _run_ocr_claimed(frames, claims_dir, cfg)
         return
 
     done = load_checkpoint(output_file) if checkpoint_every else {}
-    done_origin = load_checkpoint(output_file_paddle_origin) if checkpoint_every else {}
-    if done:
-        print(f"[->] Resume: {len(done)}/{len(frames)} frames already done, skipping.")
 
-    engine_cfg = cfg.get("ocr", {})
-    print(f"[->] {len(frames)} frames, engine={engine_cfg.get('engine', 'paddle')}, preprocess={preprocess}")
-    engine = _build_engine(engine_cfg)
+    engine = _build_engine(cfg)
+    print(f"[->] {len(frames)} frames, preprocess={preprocess}")
 
     t0 = time.time()
     records: list[dict] = []
-    records_origin: list[dict] = []
-    skipped_blur = 0
 
-    for idx, (frame_id, path) in enumerate(tqdm(frames, desc="paddle", unit="frame")):
+    for idx, (frame_id, path) in enumerate(tqdm(frames, desc="ocr", unit="frame")):
         if checkpoint_every and idx > 0 and idx % checkpoint_every == 0:
             save_output(records, output_file)
-            save_output(records_origin, output_file_paddle_origin)
 
         if frame_id in done:
             records.append(done[frame_id])
-            records_origin.append(done_origin.get(frame_id, {"frame_id": frame_id, "texts": []}))
             continue
 
         need_gray = blur_thresh or preprocess
@@ -179,29 +161,20 @@ def run_paddle_pipeline(cfg: dict) -> None:
             frame_data = frame_skip.read_frame(path)
             if frame_data is None:
                 records.append({"frame_id": frame_id, "texts": []})
-                records_origin.append({"frame_id": frame_id, "texts": []})
                 continue
             bgr, gray = frame_data
 
         if blur_thresh and frame_skip.is_blurry(gray, blur_thresh):
-            skipped_blur += 1
             records.append({"frame_id": frame_id, "texts": []})
-            records_origin.append({"frame_id": frame_id, "texts": []})
             continue
 
         source = frame_skip.preprocess(bgr) if preprocess else path
-        texts, texts_origin = engine.run(source)
-        record = correct_record_locally({"frame_id": frame_id, "texts": texts})
-        record_origin = {"frame_id": frame_id, "texts": texts_origin}
-        records.append(record)
-        records_origin.append(record_origin)
+        texts, _ = engine.run(source)
+        records.append(correct_record_locally({"frame_id": frame_id, "texts": texts}))
 
     elapsed = time.time() - t0
-    print(f"[->] Skipped -- blur={skipped_blur}")
     print(f"[->] {len(frames)} frames in {elapsed:.1f}s ({len(frames) / max(elapsed, 1e-9):.2f} fps)")
     if hasattr(engine, "det_ms"):
         print(f"[->] det {engine.det_ms / max(len(frames), 1):.0f} ms/frame, rec {engine.rec_ms / max(len(frames), 1):.0f} ms/frame")
     save_output(records, output_file)
-    save_output(records_origin, output_file_paddle_origin)
     print(f"[->] Saved {len(records)} records -> {Path(output_file).resolve()}")
-    print(f"[->] Saved {len(records_origin)} records -> {Path(output_file_paddle_origin).resolve()}")

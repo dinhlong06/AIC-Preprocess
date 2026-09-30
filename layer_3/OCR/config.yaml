@@ -1,17 +1,12 @@
-# OCR Pipeline Configuration -- stage 1 (see README.md)
-#   run_paddle.py: GPU detection+recognition, tự hiệu đính dấu trong từng frame
+# OCR Pipeline Configuration -- DeepSolo detection + PARSeq-VN recognition
+# (see README.md). Runs inside the ocr-deepsolo-parseq image via run.sh
+# (single) or run_shards.sh (worker pool); both forward CLI flags.
 # -----------------------------------------------------------------------------
 
-paddle:
-  # run_paddle.sh always passes --input -- this is only the fallback for
-  # calling run_paddle.py directly without the wrapper script.
+ocr:
+  # Fallback for calling run_ocr.py directly without a wrapper script.
   input_dir: "../../layer_2/Keyframe_Extracting/benchmark_batch1_v2/pipeline_g"
-  # VietOCR result (every non-empty box, no confidence filter, see
-  # ocr/paddle_engine.py) -- this is what stage 2 corrects.
-  output_file: "./output/output_vietocr.json"
-  # Paddle's own recognizer output, untouched by the fallback above -- kept
-  # only for comparing the two recognizers, not consumed by stage 2.
-  output_file_paddle_origin: "./output/output_paddle_origin.json"
+  output_file: "./output/output_ocr.json"
 
   # 0 = no limit (process every frame found in input_dir)
   limit: 0
@@ -27,23 +22,10 @@ paddle:
   preprocess: false
 
   # Frame-skip: only blur remains (blank + near-duplicate similarity skip
-  # removed 2026-08-27 -- see ocr/frame_skip.py docstring for why. Set to 0
-  # to disable.
+  # removed -- see ocr/frame_skip.py docstring for why). Set to 0 to disable.
   skip:
     blur_threshold: 50.0             # Laplacian variance below this = skip as blurry
 
-  ocr:
-    # Stage-1 engine: "paddle" (PaddleOCR det + VietOCR/Paddle rec) or
-    # "deepsolo_parseq" (DeepSolo det + PARSeq-VN rec -- better on the 60-frame
-    # bottom-band GT: R 93.6% vs 75.2% with diacritics; needs ./run_deepsolo.sh
-    # because only the ocr-deepsolo-parseq image has detectron2/DeepSolo/PARSeq).
-    engine: "paddle"
-    lang: "vi"
-    # PP-OCRv6 ignores `lang` entirely (en/vi byte-identical) and its marks
-    # are often wrong (see paddleocr-vietnamese-charset-gap memory) -- giữ
-    # nguyên, không workaround bằng ascii-stripping; corrector sửa dấu ngay
-    # trong từng frame.
-    ocr_version: null   # omit for paddleocr's current default (PP-OCRv6 as of 3.7.0)
-    # Measured to NOT fix word-merging ("TINCHINH"-type errors) -- kept only
-    # as an escape hatch, do not set without re-testing (see memory).
-    unclip_ratio: null
+  # DeepSolo detector settings.
+  det_threshold: 0.15
+  min_size: 1080

@@ -113,3 +113,6 @@ layer_3/OCR_gemma/*.tsv
 layer_1/shards/
 layer_1/batch1/shards/
 layer_2/Keyframe_Extracting/claims*/
+
+# Docker image backup (12.7GB, unreproducible) -- kept on disk only
+ocr-deepsolo-parseq-backup.tar

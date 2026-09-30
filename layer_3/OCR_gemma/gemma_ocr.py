@@ -3,8 +3,6 @@
 Vì sao 1120 token/ảnh: mặc định server chỉ cấp 280 token cho một ảnh 1280x720, chữ nhỏ
 bị vỡ và Gemma đoán ra câu tiếng Việt trôi chảy nhưng sai ("ma túy" -> "máy bay",
 "1961" -> "1978"). 1120 đọc đúng các ca đó; đổi lại chậm ~3.5x (~4.2 frame/s).
-Đọc lại từng box confidence thấp của Paddle đã thử và không hơn production
-(confidence VietOCR không phân biệt đúng/sai, crop mất ngữ cảnh).
 OCR và caption là 2 request riêng: gộp chung 1 request (JSON {ocr, caption}) nhanh hơn
 ~1.5x nhưng phần OCR sót ~8% chữ (hay bỏ dòng nhỏ cuối khung hình).
 

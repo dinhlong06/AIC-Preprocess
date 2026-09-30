@@ -1,8 +1,0 @@
-experiments/
-output/
-__pycache__/
-.env
-cache/
-frames/
-output_*/
-*.log

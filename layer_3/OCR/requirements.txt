@@ -1,8 +1,0 @@
-# paddlepaddle-gpu and torch/torchvision are installed separately in Dockerfile
-# from their own GPU-wheel indexes (matched to the CUDA version) -- not listed here.
-paddleocr>=3.0
-paddlex[ocr]==3.7.2
-vietocr
-tqdm
-pyyaml
-requests

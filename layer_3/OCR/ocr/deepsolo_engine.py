@@ -1,15 +1,11 @@
 """DeepSolo (detection) + PARSeq-VN (recognition) stage-1 engine.
 
-Same contract as PaddleEngine: engine.run(path_or_bgr) ->
-(list_of_line_dicts, []). PARSeq replaces both recognizers, so the origin
-list is always empty (merge_recognizers treats missing boxes as one-sided).
+engine.run(path_or_bgr) -> (list_of_line_dicts, []) with the origin list
+always empty (single recognizer, nothing to merge).
 
 Only runnable inside the ocr-deepsolo-parseq image (detectron2/DeepSolo/
-strhub on PYTHONPATH) -- launch via ./run_deepsolo.sh, which mounts
+strhub on PYTHONPATH) -- launch via ./run.sh, which mounts
 experiments/deepsolo_parseq at /exp (weights + vn_scenetext live there).
-
-vs Paddle+VietOCR on the 60-frame bottom-band GT (eval_bottomband.py):
-recall 93.6% vs 75.2% with diacritics, 96.0% vs 88.7% without.
 """
 
 from __future__ import annotations
@@ -93,7 +89,7 @@ def _group_lines(words):
 
 
 class DeepSoloParseqEngine:
-    """DeepSolo detector + PARSeq-VN recognizer, PaddleEngine-compatible."""
+    """DeepSolo detector + PARSeq-VN recognizer."""
 
     def __init__(
         self,
