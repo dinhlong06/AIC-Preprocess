@@ -3,7 +3,6 @@ import gc
 import json
 import os
 import subprocess
-import sys
 import tempfile
 import wave
 from typing import List, Optional
@@ -103,17 +102,6 @@ def _drop_video_ids(jsonl_path: str, video_ids: set, key: str = "video_id") -> N
     if os.path.exists(marker):
         with open(marker, "r", encoding="utf-8") as f:
             _write_lines_atomic(marker, [v for v in (x.strip() for x in f) if v and v not in video_ids])
-
-
-def _get_device() -> torch.device:
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if device.type != "cuda":
-        print(
-            "[CẢNH BÁO] Không thấy GPU trong container. Kiểm tra lại "
-            "`docker run --gpus all ...` và driver NVIDIA trên host.",
-            file=sys.stderr,
-        )
-    return device
 
 
 def has_audio(video_path: str) -> bool:

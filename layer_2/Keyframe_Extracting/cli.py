@@ -40,7 +40,7 @@ def build_pipeline_g(cfg: dict, args: argparse.Namespace):
     transition_cfg = cfg.get("transition", {})
     veto_cfg = cfg.get("veto", {})
     sharpness_cfg = cfg.get("sharpness", {})
-    min_dist = getattr(args, "min_frame_distance", None) or cfg.get("min_frame_distance", 5)
+    min_dist = args.min_distance or cfg.get("min_frame_distance", 5)
     return PipelineG(
         checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
         spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
@@ -78,7 +78,7 @@ def build_pipeline_h(cfg: dict, args: argparse.Namespace):
     veto_cfg = cfg.get("veto", {})
     sharpness_cfg = cfg.get("sharpness", {})
     text_cfg = cfg.get("text_prescan", {})
-    min_dist = getattr(args, "min_frame_distance", None) or cfg.get("min_frame_distance", 5)
+    min_dist = args.min_distance or cfg.get("min_frame_distance", 5)
     return PipelineH(
         checkpoint_path=args.checkpoint_path or beit3_cfg.get("checkpoint_path", ""),
         spm_path=args.spm_path or beit3_cfg.get("spm_path", ""),
