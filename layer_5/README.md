@@ -13,9 +13,8 @@ siglip embeddings ────┘                        └──► Milvus (ve
                                               api (FastAPI, :8000): /search/*, /frames, /shots, /transcript
 ```
 
-Stores: `indexdb/mongo.py`, `elastic.py`, `milvus.py`. Write path: `writers.py`
-→ `elastic_indexer.py` + `milvus_indexer.py`. Read path: `indexdb/read.py`
-(`Reader`), wrapped by `api/main.py`.
+Write path: `writers.py` → `elastic_indexer.py` + `milvus_indexer.py`.
+Read path: `indexdb/read.py` (`Reader`), wrapped by `api/main.py`.
 
 ## Setup and run
 
@@ -41,3 +40,27 @@ Extra flags pass straight to the ingester
 
 The `api` service authenticates with `X-API-Key`; export `API_KEY` before
 `docker compose up`, otherwise every authenticated request gets a 401.
+
+## Folder structure
+
+```
+layer_5/
+├── run.sh                 # stack driver: up/down/reset/status/test/init/ingest-*/shell
+├── docker-compose.yaml    # Milvus + MongoDB + Elasticsearch + api services
+├── Dockerfile             # python image, CMD runs init_stores
+├── requirements.txt
+├── indexdb/
+│   ├── ingest_batch1.py   # ingester for both batches (--batch batch1|batch2)
+│   ├── writers.py         # MongoWriter (sole write path)
+│   ├── elastic.py         # ES store + vi_analyzer mapping
+│   ├── elastic_indexer.py # Mongo frames → ES bulk indexer
+│   ├── milvus.py          # Milvus store + schema
+│   ├── milvus_indexer.py  # npy + ids → Milvus entities
+│   ├── mongo.py           # Mongo client + collections + indexes
+│   ├── builders.py        # pure doc/entity dict builders
+│   ├── read.py            # Reader: the query surface
+│   ├── config.py          # env → Config
+│   └── init_stores.py     # one-shot index/collection creation
+└── api/
+    └── main.py            # FastAPI wrapper over Reader
+```

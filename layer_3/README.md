@@ -1,37 +1,47 @@
 # Layer 3 — OCR
 
-Reads text out of the keyframe images chosen by layer 2.
+Reads text out of the keyframe images chosen by layer 2. Two paths:
 
-## Production path: `OCR_gemma/` (API)
+```
+keyframes ──► OCR_gemma (Gemma 4 over API) ──► gemma_ocr_batch1.jsonl      (production)
+         └──► OCR (PaddleOCR, local GPU) ────► output_vietocr.json        (comparison)
+```
 
-**Gemma 4 27B/31B over HTTP** — the only producer of the OCR files that
-layer 5 ingests:
+- `OCR_gemma/gemma_ocr.py`: Gemma 4 27B/31B over HTTP (UIT endpoint + Google
+  AI Studio), one row per frame `{"frame_id", "path", "text", "finish",
+  "model"}` where `frame_id` = `keyframe_id`. Same script with `--task caption`
+  produces captions. Retries 429/5xx with backoff.
+- `OCR/`: PaddleOCR PP-OCRv6 detection + VietOCR/Paddle recognition, diacritics
+  corrected locally per frame ([details](OCR/README.md)).
 
-| Batch | Output | Consumed by |
-|---|---|---|
-| batch1 | `OCR_gemma/gemma_ocr_batch1.jsonl` (195,823 frames) | `run.sh ingest-batch1` |
-| batch2 | `output_batch2/gemma_ocr*.jsonl` (~163k frames) | `run.sh ingest-batch2` |
+## Setup and run
 
-Each row: `{"frame_id", "path", "text", "finish", "model"}` where `frame_id` =
-`keyframe_id` of layer 2. Captions come from the same script with `--task caption`.
+```bash
+cd OCR_gemma
+python gemma_ocr.py --task ocr --frames <keyframes> --out gemma_ocr_batch1.jsonl
+python gemma_ocr.py --task caption --frames <keyframes> --out captions.jsonl --skip "*.jsonl"
+# keys: GEMINI_API_KEY(_2..4) for AI Studio, LLM_API_KEY for UIT
+# UIT needs a private CA: UIT_CA_BUNDLE=/path/bundle.pem (unset = system trust store)
 
-- Keys: `GEMINI_API_KEY(_2.._4)` for Google AI Studio (`ais*` models), `LLM_API_KEY`
-  for the UIT-hosted endpoint. UIT needs a private CA: point `UIT_CA_BUNDLE` at the
-  bundle file; unset falls back to the system trust store.
-- Retries on 429/5xx with measured backoff (see module docstring).
+cd ../OCR
+./run_paddle.sh                                        # 1 GPU
+FRAMES_DIR=/path OUTPUT_DIR=/path ./run_paddle.sh      # custom dirs
+NSHARDS=4 ./run_paddle_batch1_shards.sh                # background GPUs (add/status/merge)
+```
 
-Docs: [OCR_gemma/](OCR_gemma/) — script is self-documenting (docstring has the
-production commands and the token-budget measurements that justify them).
+## Folder structure
 
-## Comparison path: `OCR/` (local GPU)
-
-**PaddleOCR PP-OCRv6 detection + VietOCR/Paddle recognition**, with Vietnamese
-diacritics corrected locally per frame. Used to regenerate baseline outputs.
-
-Docs: [OCR/README.md](OCR/README.md)
-
-## Downstream
-
-`layer_5/indexdb/ingest_batch1.py` joins OCR text onto frames by `keyframe_id`
-and indexes it as `ocr_text` in Elasticsearch (plus `ocr_api` for any corrected
-variant).
+```
+layer_3/
+├── OCR_gemma/
+│   ├── gemma_ocr.py           # Gemma 4 OCR + caption over API (--task ocr|caption)
+│   └── run_caption_batch1.sh  # orchestrates the caption shards
+└── OCR/
+    ├── run_paddle.py          # CLI entry point
+    ├── run_paddle.sh          # build + run in Docker on the freest GPU
+    ├── run_paddle_batch1_shards.sh  # worker pool: add / status / release / merge
+    ├── config.yaml            # params
+    ├── ocr/                   # paddle_engine, corrector, frame_skip, loader, formatter, pipeline
+    ├── Dockerfile
+    └── requirements.txt
+```

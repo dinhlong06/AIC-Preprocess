@@ -13,45 +13,31 @@ video.mp4 ──► TransNetV2 ──► shots.jsonl     (shot boundaries, per v
 Both are resume-safe (`.done` markers per video) and shard-safe (O_EXCL claim
 files let N containers share one work queue without double-processing).
 
-## Production runs
-
-| Batch | Input | Output | Status |
-|---|---|---|---|
-| batch1 (L21–L30, 873 videos) | `dataset_batch1/videos/video` | `batch1/shots.jsonl`, `batch1/whisper.jsonl` | complete (873/873) |
-| batch2 (M/N/S, 614 videos) | `dataset/video` | `shots.jsonl`, `whisper.jsonl` (repo root) | complete (614/614) |
-
-## Files
-
-| File | Purpose |
-|---|---|
-| `gpu_shot_and_asr.py` | The only entry point: shot detection + ASR, resumable, claim-based sharding |
-| `run_layer1.sh` | Build + run in Docker on the freest GPU. Env: `VIDEO_DIR` (input), `BATCH_DIR`/`OUTPUT_DIR` (output) |
-| `run_shards.sh` | Multi-GPU fanout: `shots` / `asr` / `merge` stages, work-stealing via claim dir |
-| `Dockerfile` | TF 2.13 GPU + torch cu118 + static ffmpeg (AV1) + TransNetV2 |
-| `tests/` (untracked) | Unit tests for entry building, ChunkFormer wiring, and the layer-2 contract |
-
-## Usage
+## Setup and run
 
 ```bash
-./run_shards.sh shots        # TransNetV2, CPU-bound, all GPUs
-./run_shards.sh asr          # ChunkFormer, GPU-bound
-./run_shards.sh merge        # merge shard jsonl -> shots.jsonl + whisper.jsonl
+cd layer_1
+./run_shards.sh shots   # TransNetV2 shot detection, CPU-bound, all GPUs
+./run_shards.sh asr     # ChunkFormer ASR, GPU-bound
+./run_shards.sh merge   # merge shard jsonl -> shots.jsonl + whisper.jsonl
 ```
 
-Defaults point at batch2; for batch1:
-`VIDEO_DIR=$PWD/../dataset_batch1/videos/video BATCH_DIR=$PWD/batch1 ./run_shards.sh shots`
+- `./run_layer1.sh` runs the same pipeline on a single GPU
+  (`--skip_shots`, `--skip_asr`, `--videos ...`, `--force` supported).
+- Defaults point at batch2; for batch1:
+  `VIDEO_DIR=../dataset_batch1/videos/video BATCH_DIR=$PWD/batch1 ./run_shards.sh shots`
+- `merge` refuses to write a file missing videos unless `FORCE=1`.
+- ChunkFormer weights live in `cache/huggingface` (bind-mounted, downloaded on
+  first run).
 
-## Notes
+## Folder structure
 
-- ASR backend is **ChunkFormer CTC (khanhld/chunkformer-ctc-large-vie)** — one
-  `endless_decode` call per VAD segment.
-- Videos with no audio get a `.done` marker with 0 segments — otherwise merge
-  would wait forever.
-- `merge` refuses to produce a file missing videos (progress < total) unless
-  `FORCE=1`.
-- Model weights live in `cache/huggingface` (bind-mounted, not baked into the
-  image); first run downloads them.
-- **TransNetV2 is vendored** in `transnetv2/inference` (~35MB, code + TF
-  weights). This is the only folder of the TransNetV2 repo that this layer
-  uses; the Dockerfile copies it into the image so the build needs no network
-  access to external model repos.
+```
+layer_1/
+├── gpu_shot_and_asr.py   # the only entry point (shots + ASR, resumable, claim-based sharding)
+├── run_layer1.sh         # build + run in Docker on the freest GPU
+├── run_shards.sh         # multi-GPU fanout: shots / asr / merge
+├── transnetv2/inference  # vendored TransNetV2 code + TF weights (~35MB, copied into the image)
+├── Dockerfile            # TF 2.13 GPU + torch cu118 + static ffmpeg
+└── requirements.txt
+```

@@ -94,3 +94,19 @@ siglip = load_siglip_result(
 - `Expected .../keyframes or direct <PREFIX>nn_Vnnn video directories`: wrong
   `--dataset-root`, or the video directory name doesn't match the pattern in
   section 2.
+
+## 7. Folder structure
+
+```
+siglip/
+├── run.sh                 # build + run: NSHARDS shards, one GPU each (NSHARDS=1 for one GPU)
+├── Dockerfile             # pytorch GPU image, entrypoint is the CLI below
+├── pyproject.toml
+└── keyframe_pipeline/     # `python -m keyframe_pipeline {siglip-video,siglip-dataset}`
+    ├── siglip.py          # encode → normalize → validate → save
+    ├── discovery.py       # scan keyframe dirs, natural-order IDs
+    ├── io.py              # atomic .npy + _ids.json write/read
+    ├── backends/siglip_transformers.py  # HF SigLIP2 encoder (lazy load, fp16)
+    ├── types.py           # Keyframe/SiglipResult dataclasses
+    └── config.py          # model id, dim 1152, dataloader workers
+```

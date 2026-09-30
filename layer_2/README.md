@@ -8,34 +8,45 @@ shots.jsonl ──► Keyframe_Extracting (pipeline G/H) ──► keyframes.jso
 whisper.jsonl ─► shot_transcript (cpu_map_transcript.py) ──► shot_transcripts.jsonl
 ```
 
-Two components:
+- `pipeline_g` (default): 7-stage BEiT-3 semantic filter, params tuned v3.1.
+- `pipeline_h`: G + `text_prescan`, prefers frames with changing text regions.
+- `cpu_map_transcript.py`: CPU-only join of ASR segments to shots by time
+  overlap (500ms gap tolerance), one text per shot.
 
-| Component | What it does | Docs |
-|---|---|---|
-| `Keyframe_Extracting/` | Pick representative frames per shot (BEiT-3 semantic filtering, 7-stage pipeline G; H adds text-prescan). Runs on GPU. | [Keyframe_Extracting/README.md](Keyframe_Extracting/README.md) |
-| `shot_transcript/` | CPU-only: join ASR segments to shots by time overlap (500ms gap tolerance), one text per shot. | [shot_transcript/](shot_transcript/) |
+See [Keyframe_Extracting/README.md](Keyframe_Extracting/README.md) for the
+extractor stages and params.
 
-## Production runs
-
-| Batch | Keyframes | Shot transcripts |
-|---|---|---|
-| batch1 (873 videos) | `Keyframe_Extracting/benchmark_batch1_v2/pipeline_g` | `shot_transcript/shot_transcripts_batch1.jsonl` |
-| batch2 (614 videos) | `output_batch2/keyframes/pipeline_h` | `output_batch2/shot_transcripts.jsonl` |
-
-## Downstream
-
-- `layer_3` OCRs the keyframe images (`frame_id` = `keyframe_id`).
-- `siglip` embeds them (same ID).
-- `layer_5` ingests keyframes.jsonl + shot transcripts + OCR + captions into
-  Mongo/Elasticsearch/Milvus.
-
-## Usage
+## Setup and run
 
 ```bash
-# keyframes (batch1 defaults)
-cd Keyframe_Extracting && ./run_shards.sh
+# keyframes
+cd Keyframe_Extracting
+./run_shards.sh                        # pipeline_g, 3 shards across GPUs
+PIPELINE=pipeline_h ./run_shards.sh    # text-aware variant
+# add / drain / stop / watchdog subcommands manage background shards
 
 # shot transcripts
-cd shot_transcript && ./run.sh                              # batch2
+cd ../shot_transcript
+./run.sh                                                          # batch2
 L1_DIR=../../layer_1/batch1 OUT=shot_transcripts_batch1.jsonl ./run.sh   # batch1
+```
+
+## Folder structure
+
+```
+layer_2/
+├── Keyframe_Extracting/
+│   ├── cli.py                 # CLI: --pipeline {g,h,all} + param overrides
+│   ├── run.sh                 # build + run (docker or host mode)
+│   ├── run_shards.sh          # multi-GPU fanout with add/drain/stop/watchdog
+│   ├── configs/               # pipeline_g.yaml, pipeline_h.yaml
+│   ├── src/core/              # runner, models, metrics, interfaces
+│   ├── src/extractors/        # pipeline_g.py, pipeline_h.py
+│   ├── src/components/        # dake, beit3_encoder, semantic_filter, text_prescan, ...
+│   ├── checkpoint/beit-3/     # BEiT-3 weights + tokenizer
+│   ├── Dockerfile
+│   └── requirements.txt
+└── shot_transcript/
+    ├── cpu_map_transcript.py  # ASR segments → one text per shot
+    └── run.sh                 # thin wrapper (env: L1_DIR, OUT)
 ```
