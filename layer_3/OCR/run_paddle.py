@@ -24,6 +24,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output", default=None, metavar="FILE", help="Override paddle.output_file")
     parser.add_argument("--output-paddle-origin", default=None, metavar="FILE", help="Override paddle.output_file_paddle_origin")
     parser.add_argument("--limit", type=int, default=None, help="Override paddle.limit")
+    parser.add_argument("--engine", choices=["paddle", "deepsolo_parseq"], default=None,
+                        help="Override paddle.ocr.engine (deepsolo_parseq needs ./run_deepsolo.sh)")
     parser.add_argument("--claims-dir", default=None, metavar="DIR",
                          help="Worker-pool mode: claim+process one video at a time under DIR, "
                               "skipping videos already claimed/done -- for running several shards "

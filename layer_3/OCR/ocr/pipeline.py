@@ -26,6 +26,13 @@ from .paddle_engine import PaddleEngine
 
 
 def _build_engine(engine_cfg: dict):
+    if engine_cfg.get("engine") == "deepsolo_parseq":
+        from .deepsolo_engine import DeepSoloParseqEngine
+
+        return DeepSoloParseqEngine(
+            det_threshold=engine_cfg.get("det_threshold", 0.15),
+            min_size=engine_cfg.get("min_size", 1080),
+        )
     return PaddleEngine(
         lang=engine_cfg.get("lang", "vi"),
         ocr_version=engine_cfg.get("ocr_version"),

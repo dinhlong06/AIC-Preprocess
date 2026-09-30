@@ -12,7 +12,10 @@ keyframes ──► OCR_gemma (Gemma 4 over API) ──► gemma_ocr_batch1.json
   "model"}` where `frame_id` = `keyframe_id`. Same script with `--task caption`
   produces captions. Retries 429/5xx with backoff.
 - `OCR/`: PaddleOCR PP-OCRv6 detection + VietOCR/Paddle recognition, diacritics
-  corrected locally per frame ([details](OCR/README.md)).
+  corrected locally per frame ([details](OCR/README.md)). Alternative engine:
+  DeepSolo detection + PARSeq-VN recognition via `OCR/run_deepsolo.sh`
+  (`--engine deepsolo_parseq`) — better on the 60-frame bottom-band GT
+  (R 93.6% vs 75.2% with diacritics).
 
 ## Setup and run
 
